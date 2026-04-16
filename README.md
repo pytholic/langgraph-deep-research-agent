@@ -8,6 +8,8 @@ This project builds the autonomous complement to a human-triggered knowledge sys
 
 ## Architecture
 
+> For the reasoning behind choosing LangGraph over a simple LLM tool-calling loop, see [docs/why-langgraph.md](docs/why-langgraph.md).
+
 ![Architecture](docs/architecture.png)
 
 ### Components
