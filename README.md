@@ -35,6 +35,15 @@ This project builds the autonomous complement to a human-triggered knowledge sys
 | Scheduled autonomy              | Cron trigger (not human-triggered)          |
 | System integration              | Wiki Bridge connects to existing vault      |
 
+## Built on langgraph-coordinator-agent
+
+This project extends [`langgraph-coordinator-agent`](https://github.com/pytholic/langgraph-coordinator-agent) — a reusable template that implements two foundational patterns:
+
+- **Sub-agent context isolation** — when the orchestrator delegates a task, the sub-agent receives only the task description as its context (no parent message history). This keeps each sub-agent focused and prevents context pollution across parallel searches.
+- **Virtual file system + context offloading** — search tools save full content to `state["files"]` and return only short summaries to the message thread. The orchestrator reads files selectively when it needs detail. Context stays bounded regardless of how many sources are searched.
+
+The coordinator-agent template handles the infrastructure. This repo builds the research-specific layer on top: multi-source subagents (Arxiv, Web, Social), a Filter & Ranker, a daily digest formatter, and an optional Wiki Bridge for knowledge base integration.
+
 ## How it differs from my other repos
 
 | Repo                                                                                       | Key Pattern                                                                                            |
