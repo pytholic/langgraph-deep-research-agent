@@ -1,7 +1,7 @@
 [project]
 name = "langgraph-deep-research-agent"
 version = "0.1.0"
-description = "An autonomous daily research agent that discovers, filters, and delivers research updates using LangGraph subagent delegation."
+description = "An autonomous deep research agent that discovers, filters, and delivers research updates using LangGraph subagent delegation."
 readme = "README.md"
 requires-python = ">=3.13"
 dependencies = [
