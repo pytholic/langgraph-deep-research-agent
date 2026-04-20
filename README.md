@@ -60,12 +60,12 @@ The coordinator-agent template handles the infrastructure. This repo builds the 
 Build a minimal working agent with one search source and CLI output.
 
 - Single LangGraph graph (no subagents yet)
-- Arxiv search tool only
+- Web search via Tavily and Arxiv search (in progress)
 - Basic keyword-based filtering
 - Markdown digest printed to stdout or saved to file
 - Hardcoded topic config
 
-**Deliverable:** Run a script, get a markdown file with today's relevant arxiv papers.
+**Deliverable:** Run a script, get a markdown file with today's relevant papers and articles.
 
 ### Phase 2: Multi-Source with Subagents
 
@@ -105,6 +105,7 @@ Connect the research agent to the Obsidian vault knowledge base.
 - **Python 3.13+** — Primary language
 - **LangGraph** — Agent orchestration, state management, subagent delegation
 - **Tavily** — Web search
+- **Arxiv API** — Academic paper search
 - **Streamlit / Gradio** — Simple UI for digest viewing and config management *(Phase 3)*
 - **Markdown** — Output format for digests
 
