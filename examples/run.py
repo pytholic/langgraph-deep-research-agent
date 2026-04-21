@@ -22,7 +22,9 @@ from utils import stream_agent  # noqa: E402
 
 from deep_research_agent.agent import create_deep_research_agent  # noqa: E402
 
-DEFAULT_QUERY = "Give me an overview of Model Context Protocol (MCP)."
+DEFAULT_QUERY = (
+    "Find the most recent arxiv papers on LLM agents and summarize their key contributions."
+)
 
 
 async def main() -> None:

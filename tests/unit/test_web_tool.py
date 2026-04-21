@@ -8,14 +8,14 @@ import os
 import pytest
 from pytest_mock import MockerFixture
 
-from deep_research_agent.tools.web import TavilySearchTool
+from deep_research_agent.tools.web_tool import TavilySearchTool
 
 
 @pytest.fixture
 def tool(mocker: MockerFixture) -> TavilySearchTool:
     mocker.patch.dict(os.environ, {"TAVILY_API_KEY": "test-key", "OPENAI_API_KEY": "test-key"})
-    mocker.patch("deep_research_agent.tools.web.TavilyClient")
-    mocker.patch("deep_research_agent.tools.web.init_chat_model")
+    mocker.patch("deep_research_agent.tools.web_tool.TavilyClient")
+    mocker.patch("deep_research_agent.tools.web_tool.init_chat_model")
     return TavilySearchTool()
 
 
@@ -35,7 +35,12 @@ def tool(mocker: MockerFixture) -> TavilySearchTool:
             id="summarize_returns_none_falls_back_to_truncated_raw",
         ),
         pytest.param(
-            {"title": "Test Page", "url": "https://example.com", "raw_content": "", "content": "snippet"},
+            {
+                "title": "Test Page",
+                "url": "https://example.com",
+                "raw_content": "",
+                "content": "snippet",
+            },
             None,
             "snippet",
             id="no_raw_content_uses_tavily_snippet",

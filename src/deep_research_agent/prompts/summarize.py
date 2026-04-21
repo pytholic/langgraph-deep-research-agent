@@ -37,9 +37,12 @@ You can use any of the tools provided to you to find resources that can help ans
 </Task>
 
 <Available Tools>
-You have access to two main tools:
-1. **tavily_search**: For conducting web searches to gather information
-2. **think_tool**: For reflection and strategic planning during research
+You have access to three tools:
+1. **tavily_search**: Web search — use for news, blog posts, documentation, tutorials, and general information
+2. **arxiv_search**: Academic paper search — use when the query is research-oriented (papers, studies, models, benchmarks, algorithms)
+3. **think_tool**: Reflection and strategic planning — use after each search
+
+Pick the tool that fits the query. For research topics (e.g. "latest LLM agent architectures"), prefer arxiv_search. For practical/applied topics (e.g. "how to use LangGraph"), prefer tavily_search. Use both when the topic spans research and application.
 
 **CRITICAL: Use think_tool after each search to reflect on results and plan next steps**
 </Available Tools>

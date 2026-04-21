@@ -19,10 +19,11 @@ from deep_research_agent.prompts.system import (
 )
 from deep_research_agent.state import DeepAgentState
 from deep_research_agent.task import _create_task_tool
+from deep_research_agent.tools.arxiv_tool import arxiv_search
 from deep_research_agent.tools.files import ls, read_file, write_file
 from deep_research_agent.tools.research import get_today_str, think_tool
 from deep_research_agent.tools.todos import read_todos, write_todos
-from deep_research_agent.tools.web import tavily_search
+from deep_research_agent.tools.web_tool import tavily_search
 
 
 def create_deep_research_agent(
@@ -43,7 +44,7 @@ def create_deep_research_agent(
     model = init_chat_model(model=model_name, temperature=0.0)
 
     # Tools available to research sub-agents
-    sub_agent_tools = [tavily_search, think_tool]
+    sub_agent_tools = [tavily_search, arxiv_search, think_tool]
 
     # Tools available to the parent agent
     built_in_tools = [ls, read_file, write_file, write_todos, read_todos, think_tool]
@@ -53,7 +54,7 @@ def create_deep_research_agent(
         "name": "research-agent",
         "description": "Delegate research to the sub-agent researcher. Only give this researcher one topic at a time.",
         "prompt": RESEARCHER_INSTRUCTIONS.format(date=get_today_str()),
-        "tools": ["tavily_search", "think_tool"],
+        "tools": ["tavily_search", "arxiv_search", "think_tool"],
     }
 
     # Create the task delegation tool (enables sub-agent context isolation)

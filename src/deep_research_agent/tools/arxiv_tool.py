@@ -1,15 +1,20 @@
-"""Arxiv search tool implementation (stub).
+"""Arxiv search tool implementation.
 
-Implements SearchToolProtocol for academic paper search using the Arxiv API.
-Full implementation to be completed when arxiv integration is added.
+Implements academic paper search using the Arxiv API,
+and exposes a LangGraph-compatible @tool wrapper.
 
 Created by @pytholic on 2026.04.15
 """
 
+import base64
+import functools
+import os
+import uuid
 from typing import Annotated
 
+import arxiv
 from langchain_core.messages import ToolMessage
-from langchain_core.tools import InjectedToolCallId, tool
+from langchain_core.tools import InjectedToolArg, InjectedToolCallId, tool
 from langgraph.prebuilt import InjectedState
 from langgraph.types import Command
 
@@ -20,20 +25,39 @@ from deep_research_agent.tools.research import SearchResult, get_today_str
 class ArxivSearchTool:
     """Academic paper search implementation using the Arxiv API."""
 
-    def search(self, query: str, **kwargs: object) -> list[dict[str, object]]:
+    def __init__(self) -> None:
+        """Initialize the Arxiv search tool."""
+        self._client = arxiv.Client()
+
+    def search(
+        self,
+        query: str,
+        max_results: int = 1,
+        sort_by: arxiv.SortCriterion = arxiv.SortCriterion.Relevance,
+    ) -> list[arxiv.Result]:
         """Execute an Arxiv paper search.
 
         Args:
             query: Search query string
+            max_results: Maximum number of results to return
+            sort_by: Sort criterion for results
             **kwargs: Source-specific search parameters (e.g. max_results, categories)
 
         Returns:
             Raw results list from the Arxiv API
         """
-        raise NotImplementedError("Arxiv search not yet implemented")
+        search = arxiv.Search(
+            query=query,
+            max_results=max_results,
+            sort_by=sort_by,
+        )
+        return list(self._client.results(search))
 
-    def process(self, results: list[dict[str, object]]) -> list[SearchResult]:
+    def process(self, results: list[arxiv.Result]) -> list[SearchResult]:
         """Process raw Arxiv results into SearchResult objects.
+
+        For now we will use abstract as the summary.
+        TODO: Implement  llm-basedsummarization.
 
         Args:
             results: Raw results from search()
@@ -41,24 +65,39 @@ class ArxivSearchTool:
         Returns:
             List of processed SearchResult objects
         """
-        raise NotImplementedError("Arxiv result processing not yet implemented")
+        processed: list[SearchResult] = []
 
-    def summarize(self, content: str) -> str | None:
-        """Summarize arxiv paper content.
+        for result in results:
+            processed.append(
+                SearchResult(
+                    title=result.title,
+                    url=result.entry_id,
+                    summary=result.summary,
+                    filename=self._make_filename(result.title),
+                    raw_content="",
+                )
+            )
 
-        Arxiv papers have structured abstracts — summarization may return None
-        to use the abstract directly.
+        return processed
+
+    def _make_filename(self, base: str) -> str:
+        """Generate a unique filename from a base name.
 
         Args:
-            content: Raw paper content or abstract to summarize
+            base: Base filename (may or may not include extension)
 
         Returns:
-            Summary string, or None to use abstract as-is
+            Unique filename with uid suffix
         """
-        raise NotImplementedError("Arxiv summarization not yet implemented")
+        uid = base64.urlsafe_b64encode(uuid.uuid4().bytes).rstrip(b"=").decode("ascii")[:8]
+        name, ext = os.path.splitext(base)
+        return f"{name}_{uid}{ext or '.md'}"
 
 
-_arxiv_search_tool = ArxivSearchTool()
+@functools.lru_cache(maxsize=1)
+def _get_arxiv_search_tool() -> ArxivSearchTool:
+    """Get the arxiv search tool."""
+    return ArxivSearchTool()
 
 
 @tool(parse_docstring=True)
@@ -66,6 +105,8 @@ def arxiv_search(
     query: str,
     state: Annotated[DeepAgentState, InjectedState],
     tool_call_id: Annotated[str, InjectedToolCallId],
+    max_results: Annotated[int, InjectedToolArg] = 1,
+    sort_by: Annotated[arxiv.SortCriterion, InjectedToolArg] = arxiv.SortCriterion.SubmittedDate,
 ) -> Command:
     """Search Arxiv for academic papers and save results to files.
 
@@ -76,12 +117,15 @@ def arxiv_search(
         query: Search query to execute (paper title, topic, or keywords)
         state: Injected agent state for file storage
         tool_call_id: Injected tool call identifier
+        max_results: Maximum number of results to return (default: 1)
+        sort_by: Sort criterion for results (default: SubmittedDate)
 
     Returns:
         Command that saves full results to files and provides minimal summary
     """
-    raw = _arxiv_search_tool.search(query)
-    results = _arxiv_search_tool.process(raw)
+    tool = _get_arxiv_search_tool()
+    raw = tool.search(query, max_results=max_results, sort_by=sort_by)
+    results = tool.process(raw)
 
     files = state.get("files", {})
     saved_files: list[str] = []
