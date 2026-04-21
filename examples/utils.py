@@ -3,8 +3,10 @@
 import json
 from typing import Any
 
-from langchain_core.messages import BaseMessage
+from langchain_core.messages import AIMessageChunk, BaseMessage
+from langchain_core.runnables import RunnableConfig
 from langgraph.pregel import Pregel
+from langgraph.types import StreamMode
 from rich.console import Console
 from rich.panel import Panel
 from rich.text import Text
@@ -82,24 +84,77 @@ def show_prompt(prompt_text: str, title: str = "Prompt", border_style: str = "bl
 async def stream_agent(
     agent: Pregel,
     query: dict[str, Any],
-    config: dict[str, Any] | None = None,
+    config: RunnableConfig | None = None,
+    streaming: bool = True,
 ) -> dict[str, Any]:
-    """Stream agent execution with formatted output."""
-    current_state: dict[str, Any] = {}
-    async for graph_name, stream_mode, event in agent.astream(
-        query, stream_mode=["updates", "values"], subgraphs=True, config=config
-    ):
-        if stream_mode == "updates":
-            console.print(f"Graph: {graph_name if len(graph_name) > 0 else 'root'}")
+    """Run the agent and display output.
 
+    Args:
+        agent: Compiled LangGraph agent.
+        query: Input dict passed to the agent.
+        config: Optional LangGraph run config.
+        streaming: If True, stream the final response token-by-token via the
+            "messages" mode and suppress its duplicate in "updates". If False,
+            display all output as formatted blocks via "updates" only.
+    """
+    current_state: dict[str, Any] = {}
+    streaming_started = False
+    stream_modes: list[StreamMode] = ["updates", "messages"] if streaming else ["updates", "values"]
+
+    async for chunk in agent.astream(
+        query,
+        stream_mode=stream_modes,
+        subgraphs=True,
+        config=config,
+        version="v2",
+    ):
+        chunk_type = chunk["type"]
+
+        if chunk_type == "updates":
+            event: dict[str, Any] = chunk["data"]
+            graph_name: tuple[str, ...] = chunk["ns"]
             node, result = next(iter(event.items()))
+
+            # In streaming mode, skip the "model" node update only when it is a
+            # plain text response (no tool calls) — that content was already
+            # streamed token-by-token via "messages". Planning/tool-dispatch
+            # steps from "model" still have tool_calls and should be shown.
+            if streaming and node == "model":
+                msgs = result.get("messages", [])
+                last = msgs[-1] if msgs else None
+                if last is not None and hasattr(last, "tool_calls") and not last.tool_calls:
+                    continue
+
+            console.print(f"Graph: {graph_name[-1] if graph_name else 'root'}")
             console.print(f"Node: {node}")
 
             for key in result.keys():
                 if "messages" in key:
                     format_messages(result[key])
                     break
-        elif stream_mode == "values":
-            current_state = event
+
+        elif chunk_type == "messages":
+            msg, metadata = chunk["data"]
+            # Only stream tokens from the root orchestrator "model" node.
+            # Skip tool call chunks — those are handled by "updates".
+            # TODO: replace this heuristic (filtering "model" node + no tool_call_chunks)
+            # with a dedicated terminal "format_response" node in the graph definition.
+            # That gives a clean, unambiguous stream target for the UI.
+            if (
+                isinstance(msg, AIMessageChunk)
+                and metadata["langgraph_node"] == "model"
+                and not msg.tool_call_chunks
+                and msg.content
+            ):
+                if not streaming_started:
+                    console.print("\n[bold green]Final Response:[/bold green]")
+                    streaming_started = True
+                console.print(msg.content, end="")
+
+        elif chunk_type == "values":
+            current_state = chunk["data"]
+
+    if streaming_started:
+        console.print()
 
     return current_state
