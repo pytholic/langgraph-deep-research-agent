@@ -9,7 +9,10 @@ from langgraph.pregel import Pregel
 from langgraph.types import StreamMode
 from rich.console import Console
 from rich.panel import Panel
+from rich.table import Table
 from rich.text import Text
+
+from deep_research_agent.sources import extract_sources
 
 console = Console()
 
@@ -99,7 +102,9 @@ async def stream_agent(
     """
     current_state: dict[str, Any] = {}
     streaming_started = False
-    stream_modes: list[StreamMode] = ["updates", "messages"] if streaming else ["updates", "values"]
+    stream_modes: list[StreamMode] = (
+        ["updates", "messages", "values"] if streaming else ["updates", "values"]
+    )
 
     async for chunk in agent.astream(
         query,
@@ -157,4 +162,26 @@ async def stream_agent(
     if streaming_started:
         console.print()
 
+    _print_sources(current_state.get("files") or {})
+
     return current_state
+
+
+def _print_sources(files: dict[str, str]) -> None:
+    """Display extracted sources as a Rich table."""
+    sources = extract_sources(files)
+    if not sources:
+        return
+
+    table = Table(title="Sources", show_lines=True, title_style="bold cyan", title_justify="left")
+    table.add_column("#", style="dim", width=3)
+    table.add_column("Type", width=5)
+    table.add_column("Title", min_width=30)
+    table.add_column("URL", style="dim")
+
+    for i, src in enumerate(sources, 1):
+        badge = "[blue]arXiv[/blue]" if src["source_type"] == "arxiv" else "[green]web[/green]"
+        table.add_row(str(i), badge, str(src["title"]), str(src["url"]))
+
+    console.print()
+    console.print(table)

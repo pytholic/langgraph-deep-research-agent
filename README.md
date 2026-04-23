@@ -9,8 +9,49 @@ This project builds the autonomous complement to a human-triggered knowledge sys
 ## Architecture
 
 > For the reasoning behind choosing LangGraph over a simple LLM tool-calling loop, see [docs/why-langgraph.md](docs/why-langgraph.md).
+> For the full architecture and sequence diagrams, see [docs/architecture.md](docs/architecture.md).
 
 ![Architecture](docs/architecture.png)
+
+> **Note:** The sketch above is the initial design. Update pending: add bidirectional arrows on subagents (results return to Orchestrator) and a UI Layer box at the top. See [docs/architecture.md](docs/architecture.md) for the authoritative Mermaid diagrams.
+
+```mermaid
+flowchart TD
+    Config["⚙️ Config\n───────────\nTopics · Sources\nFrequency · Threshold"]
+
+    subgraph UI["UI Layer"]
+        Browser["🖥️ Web UI\nFastAPI + SSE"]
+    end
+
+    subgraph Agent["Agent Layer"]
+        Orch["🧠 Orchestrator Agent"]
+        Arxiv["📄 Arxiv Subagent"]
+        Web["🌐 Web Subagent"]
+        Social["💬 Social Subagent"]
+    end
+
+    subgraph Processing["Processing Layer"]
+        FR["🔍 Filter & Ranker"]
+        Fmt["📝 Formatter"]
+    end
+
+    subgraph Output["Output Layer"]
+        Digest["📋 Daily Digest (md)"]
+        Wiki["🗂️ Wiki Bridge\nvault/raw/"]
+    end
+
+    Config -. topics / thresholds .-> Orch
+    Browser -- query --> Orch
+    Orch -- delegate task --> Arxiv & Web & Social
+    Arxiv -- ToolMessage + files --> Orch
+    Web   -- ToolMessage + files --> Orch
+    Social -- ToolMessage + files --> Orch
+    Orch -- collected results --> FR
+    FR --> Fmt
+    Fmt --> Digest
+    Fmt -.-> Wiki
+    Digest -- streaming digest --> Browser
+```
 
 ### Components
 

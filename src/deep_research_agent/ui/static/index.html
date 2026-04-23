@@ -1,0 +1,616 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ResearchAgent</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;1,9..40,400&family=DM+Mono:wght@300;400;500&display=swap" rel="stylesheet">
+<!-- marked.js: converts markdown string → HTML in the browser -->
+<script src="https://unpkg.com/marked@15.0.12/marked.min.js"></script>
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+html, body { height: 100%; }
+body {
+  font-family: 'DM Sans', sans-serif;
+  background: oklch(0.975 0.004 240);
+  color: oklch(0.18 0.01 240);
+  -webkit-font-smoothing: antialiased;
+}
+::-webkit-scrollbar { width: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: oklch(0.85 0.005 240); border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: oklch(0.75 0.008 240); }
+
+/* Rendered markdown styles */
+.md h1 { font-size: 1.4rem; font-weight: 600; margin-bottom: 0.75rem; margin-top: 1.25rem; }
+.md h2 { font-size: 1.15rem; font-weight: 600; margin-bottom: 0.5rem; margin-top: 1rem; color: oklch(0.25 0.01 240); }
+.md h3 { font-size: 1rem; font-weight: 600; margin-bottom: 0.4rem; margin-top: 0.9rem; }
+.md p  { line-height: 1.7; margin-bottom: 0.75rem; font-size: 0.9rem; color: oklch(0.25 0.01 240); }
+.md ul, .md ol { padding-left: 1.25rem; margin-bottom: 0.75rem; }
+.md li { line-height: 1.7; font-size: 0.9rem; margin-bottom: 0.2rem; color: oklch(0.25 0.01 240); }
+.md strong { font-weight: 600; color: oklch(0.18 0.01 240); }
+.md code  { font-family: 'DM Mono', monospace; font-size: 0.8rem; background: oklch(0.94 0.006 240); padding: 1px 5px; border-radius: 3px; }
+.md a { color: oklch(0.52 0.16 252); text-decoration: none; }
+.md a:hover { text-decoration: underline; }
+.md blockquote { border-left: 3px solid oklch(0.88 0.008 240); padding-left: 0.9rem; margin: 0.75rem 0; color: oklch(0.45 0.01 240); font-style: italic; }
+.md hr { border: none; border-top: 1px solid oklch(0.92 0.006 240); margin: 1rem 0; }
+
+@keyframes spin        { to { transform: rotate(360deg); } }
+@keyframes fadeSlideIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }
+@keyframes fadeIn      { from { opacity: 0; } to { opacity: 1; } }
+@keyframes blink       { 0%,100% { opacity: 1; } 50% { opacity: 0; } }
+@keyframes progress    { from { width: 0%; } to { width: 92%; } }
+
+.trace-row-enter { animation: fadeSlideIn 0.25s ease both; }
+.sources-enter   { animation: fadeIn 0.4s ease both; }
+.cursor-blink {
+  display: inline-block; width: 2px; height: 1em;
+  background: oklch(0.42 0.14 252); margin-left: 2px;
+  vertical-align: text-bottom; animation: blink 0.9s step-end infinite;
+}
+.trace-detail-toggle {
+  font-size: 0.72rem; color: oklch(0.55 0.01 240); cursor: pointer;
+  border: none; background: none; padding: 2px 0; font-family: 'DM Sans', sans-serif;
+  display: inline-flex; align-items: center; gap: 3px; margin-top: 2px;
+}
+.trace-detail-toggle:hover { color: oklch(0.42 0.14 252); }
+.trace-detail-pre {
+  display: none; margin-top: 6px; padding: 8px 10px; border-radius: 6px;
+  background: oklch(0.975 0.004 240); font-family: 'DM Mono', monospace;
+  font-size: 0.72rem; line-height: 1.5; color: oklch(0.35 0.01 240);
+  white-space: pre-wrap; word-break: break-word; border: 1px solid oklch(0.94 0.005 240);
+}
+.toast {
+  position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%);
+  padding: 10px 20px; border-radius: 8px; font-size: 0.84rem;
+  font-family: 'DM Sans', sans-serif; z-index: 200;
+  box-shadow: 0 4px 20px oklch(0.1 0.01 240 / 0.15);
+  animation: fadeSlideIn 0.25s ease both;
+  max-width: 500px; word-break: break-word;
+}
+.toast-error { background: oklch(0.95 0.04 25); color: oklch(0.35 0.14 25); border: 1px solid oklch(0.88 0.06 25); }
+</style>
+</head>
+<body>
+<div style="display:flex;flex-direction:column;height:100vh;background:oklch(0.975 0.004 240);">
+
+  <!-- ── Top bar ── -->
+  <div style="background:white;border-bottom:1px solid oklch(0.92 0.005 240);padding:0 24px;display:flex;align-items:center;gap:16px;height:52px;position:relative;flex-shrink:0;">
+
+    <!-- Progress bar (running only) -->
+    <div id="progress-bar" style="display:none;position:absolute;bottom:0;left:0;right:0;height:2px;background:oklch(0.93 0.005 240);overflow:hidden;">
+      <div style="height:100%;background:oklch(0.52 0.16 252);animation:progress 14s ease-out forwards;"></div>
+    </div>
+
+    <!-- Logo -->
+    <div style="display:flex;align-items:center;gap:8px;margin-right:8px;">
+      <div style="width:24px;height:24px;border-radius:6px;background:oklch(0.18 0.01 240);display:flex;align-items:center;justify-content:center;">
+        <svg width="12" height="12" viewBox="0 0 14 14" fill="none">
+          <circle cx="7" cy="7" r="2.5" fill="white"/>
+          <path d="M7 1.5V3.5M7 10.5V12.5M1.5 7H3.5M10.5 7H12.5M3.4 3.4L4.8 4.8M9.2 9.2L10.6 10.6M3.4 10.6L4.8 9.2M9.2 4.8L10.6 3.4" stroke="white" stroke-width="1.2" stroke-linecap="round"/>
+        </svg>
+      </div>
+      <span style="font-size:0.88rem;font-weight:600;color:oklch(0.18 0.01 240);">ResearchAgent</span>
+    </div>
+
+    <div style="height:20px;width:1px;background:oklch(0.92 0.005 240);"></div>
+
+    <!-- Past runs dropdown -->
+    <select id="runs-select" onchange="onSelectPastRun(this.value)" style="padding:4px 10px;border-radius:6px;font-size:0.82rem;border:1px solid oklch(0.9 0.006 240);background:oklch(0.985 0.003 240);color:oklch(0.3 0.01 240);font-family:'DM Sans',sans-serif;cursor:pointer;max-width:220px;">
+      <option value="">— past runs —</option>
+    </select>
+
+    <div style="flex:1;"></div>
+
+    <!-- Settings button + popover -->
+    <div style="position:relative;">
+      <button onclick="toggleSettings()" style="display:flex;align-items:center;gap:5px;padding:5px 10px;border:1px solid oklch(0.9 0.006 240);border-radius:6px;background:white;color:oklch(0.4 0.01 240);font-size:0.82rem;font-family:'DM Sans',sans-serif;cursor:pointer;" id="settings-btn">
+        <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="8" cy="8" r="2.5"/><path d="M8 1v2M8 13v2M1 8h2M13 8h2"/></svg>
+        Settings
+      </button>
+      <div id="settings-pop" style="display:none;position:absolute;top:calc(100% + 6px);right:0;background:white;border:1px solid oklch(0.9 0.006 240);border-radius:10px;padding:14px 16px;width:220px;z-index:100;box-shadow:0 4px 20px oklch(0.1 0.01 240 / 0.1);">
+        <div style="font-size:0.72rem;font-weight:600;letter-spacing:0.08em;text-transform:uppercase;color:oklch(0.55 0.01 240);margin-bottom:12px;">Agent Config</div>
+        <label style="font-size:0.78rem;color:oklch(0.45 0.01 240);display:block;margin-bottom:4px;">Model</label>
+        <select id="set-model" style="width:100%;padding:5px 8px;border-radius:5px;font-size:0.8rem;border:1px solid oklch(0.9 0.006 240);margin-bottom:12px;font-family:'DM Sans',sans-serif;">
+          <option value="gpt-4o-mini">gpt-4o-mini</option>
+          <option value="gpt-4o">gpt-4o</option>
+          <option value="gpt-4.1-mini">gpt-4.1-mini</option>
+          <option value="gpt-4.1">gpt-4.1</option>
+        </select>
+        <label id="agents-label" style="font-size:0.78rem;color:oklch(0.45 0.01 240);display:block;margin-bottom:4px;">Max concurrent agents: 3</label>
+        <input type="range" id="set-agents" min="1" max="6" value="3" oninput="document.getElementById('agents-label').textContent='Max concurrent agents: '+this.value" style="width:100%;accent-color:oklch(0.42 0.14 252);margin-bottom:12px;">
+        <label id="iter-label" style="font-size:0.78rem;color:oklch(0.45 0.01 240);display:block;margin-bottom:4px;">Max iterations: 3</label>
+        <input type="range" id="set-iter" min="1" max="8" value="3" oninput="document.getElementById('iter-label').textContent='Max iterations: '+this.value" style="width:100%;accent-color:oklch(0.42 0.14 252);">
+      </div>
+    </div>
+
+    <!-- Export button (visible when done) -->
+    <button id="export-btn" onclick="exportDigest()" style="display:none;align-items:center;gap:6px;padding:6px 12px;border-radius:6px;border:1px solid oklch(0.88 0.006 240);background:white;color:oklch(0.4 0.01 240);font-size:0.82rem;font-family:'DM Sans',sans-serif;cursor:pointer;font-weight:500;">
+      Export .md
+    </button>
+  </div>
+
+  <!-- ── Main scroll area ── -->
+  <div style="flex:1;overflow:auto;padding:32px 24px;">
+    <div style="max-width:860px;margin:0 auto;">
+
+      <!-- Query box -->
+      <div id="query-card" style="background:white;border-radius:12px;border:1px solid oklch(0.9 0.006 240);padding:16px;margin-bottom:24px;box-shadow:0 1px 4px oklch(0.1 0.01 240 / 0.05);transition:all 0.3s;">
+        <textarea id="query-input" rows="3"
+          placeholder="What should the agent research today? (e.g. Find the most recent arXiv papers on LLM agents and summarize key contributions)"
+          oninput="updateRunBtn()"
+          onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();handleRun();}"
+          style="width:100%;padding:4px 0;border:none;resize:none;font-size:0.92rem;font-family:'DM Sans',sans-serif;line-height:1.6;color:oklch(0.2 0.01 240);outline:none;background:transparent;"
+        ></textarea>
+        <div style="display:flex;align-items:center;justify-content:space-between;padding-top:10px;border-top:1px solid oklch(0.94 0.005 240);">
+          <div style="display:flex;gap:6px;">
+            <span style="font-size:0.74rem;padding:2px 8px;border-radius:4px;border:1px solid oklch(0.88 0.008 240);color:oklch(0.45 0.01 240);background:oklch(0.975 0.003 240);">arXiv</span>
+            <span style="font-size:0.74rem;padding:2px 8px;border-radius:4px;border:1px solid oklch(0.88 0.008 240);color:oklch(0.45 0.01 240);background:oklch(0.975 0.003 240);">Web</span>
+          </div>
+          <button id="run-btn" onclick="handleRun()" disabled
+            style="padding:7px 20px;border-radius:7px;border:none;background:oklch(0.88 0.006 240);color:oklch(0.65 0.01 240);font-size:0.86rem;font-weight:500;font-family:'DM Sans',sans-serif;cursor:not-allowed;display:flex;align-items:center;gap:6px;transition:all 0.15s;">
+            Run Research →
+          </button>
+        </div>
+      </div>
+
+      <!-- Trace panel (hidden until first trace event) -->
+      <div id="trace-panel" style="display:none;background:white;border-radius:10px;border:1px solid oklch(0.92 0.005 240);overflow:hidden;margin-bottom:20px;">
+        <button onclick="toggleTrace()" style="width:100%;padding:12px 18px;display:flex;align-items:center;justify-content:space-between;border:none;background:transparent;cursor:pointer;font-family:'DM Sans',sans-serif;">
+          <div style="display:flex;align-items:center;gap:8px;">
+            <span id="trace-dot" style="width:7px;height:7px;border-radius:50%;background:oklch(0.52 0.16 252);display:inline-block;animation:blink 1.2s ease-in-out infinite;"></span>
+            <span id="trace-label" style="font-size:0.72rem;font-weight:600;letter-spacing:0.06em;text-transform:uppercase;color:oklch(0.42 0.14 252);">Agent running…</span>
+            <span id="event-count" style="font-size:0.72rem;padding:1px 7px;border-radius:10px;background:oklch(0.94 0.006 240);color:oklch(0.5 0.01 240);">0 events</span>
+          </div>
+          <span id="trace-chevron" style="font-size:0.75rem;color:oklch(0.6 0.01 240);display:inline-block;transition:transform 0.2s;transform:rotate(180deg);">▼</span>
+        </button>
+        <div id="trace-body" style="padding:4px 18px 16px;border-top:1px solid oklch(0.94 0.005 240);">
+          <div id="trace-rows" style="margin-top:12px;"></div>
+        </div>
+      </div>
+
+      <!-- Digest panel (hidden until first token arrives) -->
+      <div id="digest-panel" style="display:none;background:white;border-radius:12px;border:1px solid oklch(0.91 0.005 240);padding:26px 30px;margin-bottom:20px;box-shadow:0 2px 12px oklch(0.1 0.01 240 / 0.06);">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:18px;padding-bottom:14px;border-bottom:1px solid oklch(0.94 0.004 240);">
+          <div style="display:flex;align-items:center;gap:8px;">
+            <span style="font-size:0.72rem;font-weight:600;letter-spacing:0.08em;text-transform:uppercase;color:oklch(0.55 0.01 240);">Digest</span>
+            <span id="digest-status" style="font-size:0.72rem;color:oklch(0.52 0.16 252);">generating…</span>
+          </div>
+          <button id="digest-export-btn" onclick="exportDigest()" style="display:none;align-items:center;gap:6px;padding:6px 12px;border-radius:6px;border:1px solid oklch(0.88 0.006 240);background:white;color:oklch(0.4 0.01 240);font-size:0.82rem;font-family:'DM Sans',sans-serif;cursor:pointer;font-weight:500;">
+            Export .md
+          </button>
+        </div>
+        <!-- Plain text with cursor while streaming -->
+        <div id="digest-stream" style="font-size:0.9rem;line-height:1.7;color:oklch(0.25 0.01 240);white-space:pre-wrap;font-family:'DM Sans',sans-serif;"></div>
+        <!-- Rendered markdown shown after done -->
+        <div id="digest-md" class="md" style="display:none;"></div>
+      </div>
+
+      <!-- Sources grid (hidden until done event) -->
+      <div id="sources-section" style="display:none;margin-bottom:24px;" class="sources-enter">
+        <div style="display:flex;align-items:baseline;gap:8px;margin-bottom:12px;">
+          <span style="font-size:0.72rem;font-weight:600;letter-spacing:0.08em;text-transform:uppercase;color:oklch(0.55 0.01 240);">Sources</span>
+          <span style="font-size:0.72rem;color:oklch(0.7 0.005 240);">ranked by relevance</span>
+        </div>
+        <div id="sources-grid" style="display:grid;grid-template-columns:1fr 1fr;gap:10px;"></div>
+      </div>
+
+      <!-- Run complete row (hidden until done) -->
+      <div id="run-complete" style="display:none;align-items:center;gap:10px;margin-bottom:24px;">
+        <span style="font-size:0.74rem;color:oklch(0.55 0.01 240);display:flex;align-items:center;gap:4px;">
+          <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="oklch(0.52 0.16 145)" stroke-width="2"><polyline points="2 8 6 12 14 4"/></svg>
+          Run complete
+        </span>
+        <span style="font-size:0.74rem;color:oklch(0.65 0.01 240);">·</span>
+        <span id="run-meta" style="font-size:0.74rem;color:oklch(0.55 0.01 240);"></span>
+      </div>
+
+      <!-- Idle hint -->
+      <div id="idle-hint" style="padding:48px 0;text-align:center;color:oklch(0.65 0.01 240);font-size:0.9rem;">
+        Enter a query above and press Run Research →
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<script>
+// ── App state ──────────────────────────────────────────────────────────────
+let phase = 'idle';   // 'idle' | 'running' | 'done'
+let digestText = '';
+let traceOpen = true;
+let eventCount = 0;
+let currentRunId = null;
+let currentRunDate = '';
+let currentDuration = 0;
+let pastRuns = JSON.parse(localStorage.getItem('ra_past_runs') || '[]');
+
+// ── Boot ───────────────────────────────────────────────────────────────────
+window.addEventListener('DOMContentLoaded', () => {
+  renderPastRunsDropdown();
+  // Close settings popover when clicking outside
+  document.addEventListener('click', e => {
+    const pop = document.getElementById('settings-pop');
+    const btn = document.getElementById('settings-btn');
+    if (!pop.contains(e.target) && !btn.contains(e.target)) {
+      pop.style.display = 'none';
+    }
+  });
+});
+
+// ── Settings popover ───────────────────────────────────────────────────────
+function toggleSettings() {
+  const pop = document.getElementById('settings-pop');
+  pop.style.display = pop.style.display === 'none' ? 'block' : 'none';
+}
+
+// ── Run button state ───────────────────────────────────────────────────────
+function updateRunBtn() {
+  const btn = document.getElementById('run-btn');
+  const hasText = document.getElementById('query-input').value.trim().length > 0;
+  const active = hasText && phase !== 'running';
+  btn.disabled = !active;
+  btn.style.background = active ? 'oklch(0.18 0.01 240)' : 'oklch(0.88 0.006 240)';
+  btn.style.color      = active ? 'white' : 'oklch(0.65 0.01 240)';
+  btn.style.cursor     = active ? 'pointer' : 'not-allowed';
+}
+
+// ── Trace panel toggle ─────────────────────────────────────────────────────
+function toggleTrace() {
+  traceOpen = !traceOpen;
+  document.getElementById('trace-body').style.display    = traceOpen ? 'block' : 'none';
+  document.getElementById('trace-chevron').style.transform = traceOpen ? 'rotate(180deg)' : 'none';
+}
+
+// ── Transition to running state ────────────────────────────────────────────
+function setRunning() {
+  phase = 'running';
+  digestText = '';
+  eventCount = 0;
+
+  // Query card — blue glow
+  const qc = document.getElementById('query-card');
+  qc.style.borderColor = 'oklch(0.78 0.08 252)';
+  qc.style.boxShadow   = '0 0 0 3px oklch(0.52 0.16 252 / 0.08)';
+
+  // Run button — spinner
+  const btn = document.getElementById('run-btn');
+  btn.disabled = true;
+  btn.style.background = 'oklch(0.88 0.006 240)';
+  btn.style.color      = 'oklch(0.65 0.01 240)';
+  btn.style.cursor     = 'not-allowed';
+  btn.innerHTML = '<span style="display:inline-block;width:12px;height:12px;border:2px solid oklch(0.55 0.01 240);border-top-color:transparent;border-radius:50%;animation:spin 0.7s linear infinite;"></span>Running…';
+
+  // Progress bar
+  document.getElementById('progress-bar').style.display = 'block';
+
+  // Trace panel — reset and show
+  document.getElementById('trace-rows').innerHTML = '';
+  document.getElementById('trace-panel').style.display = 'block';
+  document.getElementById('trace-label').textContent = 'Agent running…';
+  document.getElementById('trace-label').style.color = 'oklch(0.42 0.14 252)';
+  document.getElementById('trace-dot').style.display = 'inline-block';
+  document.getElementById('event-count').textContent  = '0 events';
+  traceOpen = true;
+  document.getElementById('trace-body').style.display     = 'block';
+  document.getElementById('trace-chevron').style.transform = 'rotate(180deg)';
+
+  // Clear old results
+  document.getElementById('digest-panel').style.display       = 'none';
+  document.getElementById('digest-stream').textContent        = '';
+  document.getElementById('digest-stream').style.display      = 'block';
+  document.getElementById('digest-md').style.display          = 'none';
+  document.getElementById('digest-md').innerHTML              = '';
+  document.getElementById('digest-status').style.display      = 'inline';
+  document.getElementById('digest-export-btn').style.display  = 'none';
+  document.getElementById('sources-section').style.display    = 'none';
+  document.getElementById('sources-grid').innerHTML           = '';
+  document.getElementById('run-complete').style.display       = 'none';
+  document.getElementById('export-btn').style.display         = 'none';
+  document.getElementById('idle-hint').style.display          = 'none';
+}
+
+// ── Transition to done state ───────────────────────────────────────────────
+function setDone(durationS, runDate) {
+  phase = 'done';
+  currentDuration = durationS;
+  currentRunDate  = runDate;
+
+  // Query card — restore
+  const qc = document.getElementById('query-card');
+  qc.style.borderColor = 'oklch(0.9 0.006 240)';
+  qc.style.boxShadow   = '0 1px 4px oklch(0.1 0.01 240 / 0.05)';
+
+  // Run button — restore
+  document.getElementById('run-btn').innerHTML = 'Run Research →';
+  updateRunBtn();
+
+  // Progress bar — hide
+  document.getElementById('progress-bar').style.display = 'none';
+
+  // Trace — update label to "Agent Trace"
+  document.getElementById('trace-label').textContent = 'Agent Trace';
+  document.getElementById('trace-label').style.color = 'oklch(0.55 0.01 240)';
+  document.getElementById('trace-dot').style.display = 'none';
+
+  // Digest — swap streaming text for rendered markdown
+  document.getElementById('digest-status').style.display     = 'none';
+  document.getElementById('digest-stream').style.display     = 'none';
+  document.getElementById('digest-export-btn').style.display = 'flex';
+  const mdEl = document.getElementById('digest-md');
+  mdEl.innerHTML   = marked.parse(digestText);  // markdown → HTML via marked.js
+  mdEl.style.display = 'block';
+
+  // Export button in top bar
+  document.getElementById('export-btn').style.display = 'flex';
+
+  // Run complete row
+  const sourceCount = document.getElementById('sources-grid').children.length;
+  document.getElementById('run-meta').textContent =
+    `${sourceCount} sources · ${durationS.toFixed(1)}s · ${runDate}`;
+  document.getElementById('run-complete').style.display = 'flex';
+}
+
+// ── Append a trace row ─────────────────────────────────────────────────────
+const TRACE_COLORS = {
+  agent:    { bg: 'oklch(0.96 0.008 240)', text: 'oklch(0.35 0.01 240)', dot: 'oklch(0.55 0.01 240)' },
+  tool:     { bg: 'oklch(0.97 0.05 252)',  text: 'oklch(0.42 0.12 252)', dot: 'oklch(0.52 0.16 252)' },
+  subagent: { bg: 'oklch(0.97 0.05 145)',  text: 'oklch(0.38 0.12 145)', dot: 'oklch(0.55 0.15 145)' },
+};
+
+function appendTraceRow(ev) {
+  eventCount++;
+  document.getElementById('event-count').textContent = `${eventCount} events`;
+
+  const c   = TRACE_COLORS[ev.event_type] || TRACE_COLORS.agent;
+  const row = document.createElement('div');
+  row.className = 'trace-row-enter';
+  row.style.cssText = 'display:flex;gap:12px;align-items:flex-start;margin-bottom:8px;';
+
+  const detailId = `detail-${eventCount}`;
+  const hasDetail = ev.detail && ev.detail.trim().length > 0;
+  const detailHtml = hasDetail
+    ? `<button class="trace-detail-toggle" onclick="toggleDetail('${detailId}',this)">▶ show detail</button><pre id="${detailId}" class="trace-detail-pre">${escapeHtml(ev.detail)}</pre>`
+    : '';
+
+  row.innerHTML = `
+    <div style="flex-shrink:0;padding-top:4px;">
+      <div style="width:8px;height:8px;border-radius:50%;background:${c.dot};"></div>
+    </div>
+    <div style="flex:1;min-width:0;">
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:2px;">
+        <span style="font-family:'DM Mono',monospace;font-size:0.7rem;color:oklch(0.65 0.01 240);">${ev.ts}</span>
+        <span style="font-size:0.72rem;font-weight:600;padding:1px 6px;border-radius:4px;background:${c.bg};color:${c.text};">${ev.label}</span>
+      </div>
+      <div style="font-size:0.84rem;color:oklch(0.28 0.01 240);line-height:1.5;">${ev.message}</div>
+      ${detailHtml}
+    </div>
+  `;
+  document.getElementById('trace-rows').appendChild(row);
+  const body = document.getElementById('trace-body');
+  body.scrollTop = body.scrollHeight;
+}
+
+function toggleDetail(id, btn) {
+  const el = document.getElementById(id);
+  if (!el) return;
+  const showing = el.style.display === 'block';
+  el.style.display = showing ? 'none' : 'block';
+  btn.textContent = showing ? '▶ show detail' : '▼ hide detail';
+}
+
+function escapeHtml(text) {
+  const d = document.createElement('div');
+  d.textContent = text;
+  return d.innerHTML;
+}
+
+// ── Append a source card ───────────────────────────────────────────────────
+function appendSourceCard(source, rank) {
+  const isArxiv   = source.source_type === 'arxiv';
+  const badgeBg   = isArxiv ? 'oklch(0.95 0.06 252)'  : 'oklch(0.95 0.06 145)';
+  const badgeText = isArxiv ? 'oklch(0.42 0.14 252)'  : 'oklch(0.38 0.12 145)';
+  const barColor  = isArxiv ? 'oklch(0.52 0.16 252)'  : 'oklch(0.52 0.15 145)';
+  const label     = isArxiv ? 'arXiv' : 'web';
+  const scorePct  = Math.round((source.score || 0) * 100);
+
+  const card = document.createElement('a');
+  card.href   = source.url || '#';
+  card.target = '_blank';
+  card.rel    = 'noreferrer';
+  card.style.cssText = 'text-decoration:none;display:flex;flex-direction:column;gap:8px;padding:14px 16px;border-radius:10px;border:1px solid oklch(0.91 0.005 240);background:white;box-shadow:0 1px 3px oklch(0.1 0.01 240 / 0.04);transition:all 0.15s;cursor:pointer;';
+  card.onmouseenter = () => {
+    card.style.borderColor = 'oklch(0.82 0.01 240)';
+    card.style.boxShadow   = '0 4px 16px oklch(0.1 0.01 240 / 0.08)';
+    card.style.background  = 'oklch(0.995 0.002 240)';
+  };
+  card.onmouseleave = () => {
+    card.style.borderColor = 'oklch(0.91 0.005 240)';
+    card.style.boxShadow   = '0 1px 3px oklch(0.1 0.01 240 / 0.04)';
+    card.style.background  = 'white';
+  };
+  card.innerHTML = `
+    <div style="display:flex;align-items:center;justify-content:space-between;">
+      <div style="display:flex;align-items:center;gap:6px;">
+        <span style="width:18px;height:18px;border-radius:50%;background:oklch(0.94 0.006 240);display:flex;align-items:center;justify-content:center;font-family:'DM Mono',monospace;font-size:0.65rem;font-weight:700;color:oklch(0.5 0.01 240);flex-shrink:0;">${rank}</span>
+        <span style="font-size:0.67rem;font-weight:600;padding:2px 7px;border-radius:4px;background:${badgeBg};color:${badgeText};font-family:'DM Mono',monospace;letter-spacing:0.03em;">${label}</span>
+      </div>
+      <span style="font-size:0.72rem;font-weight:600;padding:2px 8px;border-radius:5px;background:${badgeBg};color:${badgeText};font-family:'DM Mono',monospace;">${(source.score||0).toFixed(2)}</span>
+    </div>
+    <div style="font-size:0.86rem;font-weight:500;line-height:1.4;color:oklch(0.22 0.01 240);">${source.title || ''}</div>
+    <div style="font-size:0.78rem;color:oklch(0.5 0.01 240);line-height:1.55;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;">${source.snippet || ''}</div>
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-top:2px;">
+      <span style="font-size:0.72rem;color:oklch(0.62 0.01 240);">${source.domain || ''} · ${source.date || ''}</span>
+      <div style="width:42px;height:3px;border-radius:2px;background:oklch(0.92 0.005 240);overflow:hidden;">
+        <div style="width:${scorePct}%;height:100%;background:${barColor};border-radius:2px;"></div>
+      </div>
+    </div>
+  `;
+  document.getElementById('sources-grid').appendChild(card);
+}
+
+// ── Main run handler ───────────────────────────────────────────────────────
+async function handleRun() {
+  const query = document.getElementById('query-input').value.trim();
+  if (!query || phase === 'running') return;
+
+  setRunning();
+
+  const model     = document.getElementById('set-model').value;
+  const maxAgents = parseInt(document.getElementById('set-agents').value);
+  const maxIter   = parseInt(document.getElementById('set-iter').value);
+
+  // Step 1: POST /api/run → get run_id
+  let runId;
+  try {
+    const resp = await fetch('/api/run', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ query, model, max_agents: maxAgents, max_iter: maxIter }),
+    });
+    ({ run_id: runId } = await resp.json());
+  } catch (err) {
+    showToast('Failed to start run: ' + err.message);
+    phase = 'idle';
+    updateRunBtn();
+    return;
+  }
+  currentRunId = runId;
+
+  // Step 2: open EventSource → receive SSE events
+  const es = new EventSource(`/api/stream/${runId}`);
+
+  es.onmessage = (e) => {
+    const ev = JSON.parse(e.data);
+
+    if (ev.type === 'trace') {
+      appendTraceRow(ev);
+
+    } else if (ev.type === 'digest') {
+      // Show digest panel on first token
+      if (!digestText) {
+        document.getElementById('digest-panel').style.display = 'block';
+      }
+      digestText += ev.token;
+      const streamEl = document.getElementById('digest-stream');
+      streamEl.textContent = digestText;
+      // Re-append blinking cursor after setting textContent
+      const cursor = document.createElement('span');
+      cursor.className = 'cursor-blink';
+      streamEl.appendChild(cursor);
+
+    } else if (ev.type === 'sources') {
+      document.getElementById('sources-section').style.display = 'block';
+      (ev.sources || []).forEach((s, i) => appendSourceCard(s, i + 1));
+
+    } else if (ev.type === 'done') {
+      es.close();
+      setDone(ev.duration_s || 0, ev.run_date || '');
+      savePastRun(query, ev);
+
+    } else if (ev.type === 'error') {
+      es.close();
+      phase = 'idle';
+      document.getElementById('run-btn').innerHTML = 'Run Research →';
+      updateRunBtn();
+      document.getElementById('progress-bar').style.display = 'none';
+      const qc = document.getElementById('query-card');
+      qc.style.borderColor = 'oklch(0.9 0.006 240)';
+      qc.style.boxShadow = '0 1px 4px oklch(0.1 0.01 240 / 0.05)';
+      showToast('Agent error: ' + ev.message);
+    }
+  };
+
+  es.onerror = () => {
+    es.close();
+    if (phase === 'running') {
+      phase = 'idle';
+      document.getElementById('run-btn').innerHTML = 'Run Research →';
+      updateRunBtn();
+      document.getElementById('progress-bar').style.display = 'none';
+    }
+  };
+}
+
+// ── Past runs ──────────────────────────────────────────────────────────────
+function savePastRun(query, doneEv) {
+  const run = {
+    id: currentRunId,
+    label: query.slice(0, 50),
+    date: doneEv.run_date || '',
+    query,
+    digest: digestText,
+    duration_s: doneEv.duration_s || 0,
+  };
+  pastRuns.unshift(run);
+  if (pastRuns.length > 10) pastRuns = pastRuns.slice(0, 10);
+  localStorage.setItem('ra_past_runs', JSON.stringify(pastRuns));
+  renderPastRunsDropdown();
+}
+
+function renderPastRunsDropdown() {
+  const sel = document.getElementById('runs-select');
+  sel.innerHTML = '<option value="">— past runs —</option>';
+  pastRuns.forEach(r => {
+    const opt = document.createElement('option');
+    opt.value       = r.id;
+    opt.textContent = `${r.label} — ${r.date}`;
+    sel.appendChild(opt);
+  });
+}
+
+function onSelectPastRun(runId) {
+  const run = pastRuns.find(r => r.id === runId);
+  if (!run) return;
+
+  phase      = 'done';
+  digestText = run.digest;
+  currentRunDate  = run.date;
+  currentDuration = run.duration_s;
+  currentRunId    = run.id;
+
+  document.getElementById('idle-hint').style.display          = 'none';
+  document.getElementById('trace-panel').style.display        = 'none';
+  document.getElementById('digest-panel').style.display       = 'block';
+  document.getElementById('digest-stream').style.display      = 'none';
+  document.getElementById('digest-status').style.display      = 'none';
+  document.getElementById('digest-export-btn').style.display  = 'flex';
+  const mdEl = document.getElementById('digest-md');
+  mdEl.innerHTML   = marked.parse(run.digest);
+  mdEl.style.display = 'block';
+  document.getElementById('sources-section').style.display    = 'none';
+  document.getElementById('sources-grid').innerHTML           = '';
+  document.getElementById('run-meta').textContent = `${(run.duration_s||0).toFixed(1)}s · ${run.date}`;
+  document.getElementById('run-complete').style.display = 'flex';
+  document.getElementById('export-btn').style.display   = 'flex';
+  document.getElementById('query-input').value = run.query;
+  updateRunBtn();
+}
+
+// ── Toast notifications ───────────────────────────────────────────────────
+function showToast(message, type = 'error', durationMs = 5000) {
+  const el = document.createElement('div');
+  el.className = `toast toast-${type}`;
+  el.textContent = message;
+  document.body.appendChild(el);
+  setTimeout(() => { el.style.opacity = '0'; el.style.transition = 'opacity 0.3s'; }, durationMs - 300);
+  setTimeout(() => el.remove(), durationMs);
+}
+
+// ── Export ─────────────────────────────────────────────────────────────────
+function exportDigest() {
+  if (!digestText) return;
+  const query   = document.getElementById('query-input').value.trim();
+  const content = `# Research Digest — ${currentRunDate}\n\n**Query:** ${query}\n\n---\n\n${digestText}`;
+  const a       = document.createElement('a');
+  a.href     = 'data:text/markdown;charset=utf-8,' + encodeURIComponent(content);
+  a.download = `digest-${currentRunId || 'export'}.md`;
+  a.style.display = 'none';
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+}
+</script>
+</body>
+</html>

@@ -6,7 +6,88 @@ This document describes the target architecture for the deep research agent. The
 
 The agent operates as a two-layer pipeline: an **Agent Layer** that discovers content, and a **Processing Layer** that filters, ranks, and formats it.
 
-![Architecture](architecture.png)
+> **Note:** `architecture.png` is a quick initial sketch — update it to add bidirectional arrows on subagents and a UI Layer box at the top. The Mermaid diagram below reflects the authoritative target design.
+
+```mermaid
+flowchart TD
+    Config["⚙️ Config\n───────────\nTopics · Sources\nFrequency · Threshold"]
+
+    subgraph UI["UI Layer"]
+        Browser["🖥️ Web UI\nFastAPI + SSE"]
+    end
+
+    subgraph Agent["Agent Layer"]
+        Orch["🧠 Orchestrator Agent"]
+        Arxiv["📄 Arxiv Subagent"]
+        Web["🌐 Web Subagent"]
+        Social["💬 Social Subagent"]
+    end
+
+    subgraph Processing["Processing Layer"]
+        FR["🔍 Filter & Ranker"]
+        Fmt["📝 Formatter"]
+    end
+
+    subgraph Output["Output Layer"]
+        Digest["📋 Daily Digest (md)"]
+        Wiki["🗂️ Wiki Bridge\nvault/raw/"]
+    end
+
+    Config -. topics / thresholds .-> Orch
+    Browser -- query --> Orch
+    Orch -- delegate task --> Arxiv & Web & Social
+    Arxiv -- ToolMessage + files --> Orch
+    Web   -- ToolMessage + files --> Orch
+    Social -- ToolMessage + files --> Orch
+    Orch -- collected results --> FR
+    FR --> Fmt
+    Fmt --> Digest
+    Fmt -.-> Wiki
+    Digest -- streaming digest --> Browser
+```
+
+## Sequence diagram
+
+```mermaid
+sequenceDiagram
+    actor User
+    participant UI as Web UI
+    participant Orch as Orchestrator Agent
+    participant Sub as Arxiv / Web / Social Subagents
+    participant API as External APIs
+    participant FR as Filter & Ranker
+    participant Fmt as Formatter
+
+    User->>UI: submit query
+    UI->>Orch: POST /api/run
+
+    Orch->>Orch: write_todos() — plan research tasks
+
+    par parallel delegation
+        Orch->>Sub: task(topic_1, subagent_type)
+    and
+        Orch->>Sub: task(topic_2, subagent_type)
+    and
+        Orch->>Sub: task(topic_3, subagent_type)
+    end
+
+    Sub->>API: arxiv_search() / tavily_search()
+    API-->>Sub: raw results
+    Sub->>Sub: think_tool() — reflect & summarize
+    Sub->>Sub: write_file(findings_topic_N.md)
+    Sub-->>Orch: ToolMessage (summary) + file state merge
+    Note over Sub,Orch: Each subagent callbacks via Command state update
+
+    Orch->>Orch: read_file(findings_*.md)
+    Orch->>FR: collected results
+    FR->>FR: score, deduplicate across sources
+    FR->>Fmt: ranked results
+    Fmt->>Fmt: structure daily digest (markdown)
+    Fmt-->>Orch: formatted digest
+
+    Orch-->>UI: SSE token stream (digest)
+    UI-->>User: streamed markdown response
+```
 
 ## 1. Sub-agent context isolation (inherited)
 
