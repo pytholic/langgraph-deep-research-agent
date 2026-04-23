@@ -6,7 +6,7 @@ This document describes the target architecture for the deep research agent. The
 
 The agent operates as a two-layer pipeline: an **Agent Layer** that discovers content, and a **Processing Layer** that filters, ranks, and formats it.
 
-> **Note:** `architecture.png` is a quick initial sketch — update it to add bidirectional arrows on subagents and a UI Layer box at the top. The Mermaid diagram below reflects the authoritative target design.
+> `architecture.png` is the initial sketch. The Mermaid diagram below is the authoritative target design.
 
 ```mermaid
 flowchart TD

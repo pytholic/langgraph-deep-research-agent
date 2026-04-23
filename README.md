@@ -13,8 +13,6 @@ This project builds the autonomous complement to a human-triggered knowledge sys
 
 ![Architecture](docs/architecture.png)
 
-> **Note:** The sketch above is the initial design. Update pending: add bidirectional arrows on subagents (results return to Orchestrator) and a UI Layer box at the top. See [docs/architecture.md](docs/architecture.md) for the authoritative Mermaid diagrams.
-
 ```mermaid
 flowchart TD
     Config["⚙️ Config\n───────────\nTopics · Sources\nFrequency · Threshold"]
