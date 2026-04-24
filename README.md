@@ -76,12 +76,20 @@ flowchart TD
 
 ## Built on langgraph-coordinator-agent
 
-This project extends [`langgraph-coordinator-agent`](https://github.com/pytholic/langgraph-coordinator-agent) — a reusable template that implements two foundational patterns:
+This project extends [`langgraph-coordinator-agent`](https://github.com/pytholic/langgraph-coordinator-agent) — a reusable template that implements the Coordinator pattern. The coordinator solves three problems that emerge when a single agent tries to do everything:
 
-- **Sub-agent context isolation** — when the orchestrator delegates a task, the sub-agent receives only the task description as its context (no parent message history). This keeps each sub-agent focused and prevents context pollution across parallel searches.
-- **Virtual file system + context offloading** — search tools save full content to `state["files"]` and return only short summaries to the message thread. The orchestrator reads files selectively when it needs detail. Context stays bounded regardless of how many sources are searched.
+| Problem                                                                               | How the Coordinator solves it                                                                                                 |
+| ------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------- |
+| **Context rot** — mixed search results, schemas, and planning notes confuse the LLM   | Each sub-agent gets a clean context window with only its task description; the orchestrator keeps a separate planning context |
+| **Tool overload** — too many tools cause wrong selections and hallucinated parameters | Each sub-agent manages a small, focused tool set instead of one agent juggling everything                                     |
+| **Cost/speed mismatch** — not every step needs the most capable model                 | Heavyweight model for orchestration, lightweight models for search and summarization                                          |
 
-The coordinator-agent template handles the infrastructure. This repo builds the research-specific layer on top: multi-source subagents (Arxiv, Web, Social), a Filter & Ranker, a daily digest formatter, and an optional Wiki Bridge for knowledge base integration.
+The template provides two foundational implementation patterns:
+
+- **Sub-agent context isolation** — when the orchestrator delegates a task, the sub-agent receives only the task description (no parent message history), preventing context pollution across parallel searches.
+- **Virtual file system + context offloading** — search tools save full content to `state["files"]` and return only short summaries to the message thread. The orchestrator reads files selectively when it needs detail.
+
+This repo builds the research-specific layer on top: multi-source subagents (Arxiv, Web, Social), a Filter & Ranker, a daily digest formatter, and an optional Wiki Bridge for knowledge base integration.
 
 ## How it differs from my other repos
 
