@@ -34,6 +34,9 @@ def file_reducer(left: dict[str, str], right: dict[str, str]) -> dict[str, str]:
     Used as a reducer function for the files field in agent state,
     allowing incremental updates to the virtual file system.
 
+    It merges dict updates additively so parallel sub-agents can write distinct files without
+    clobbering each other.
+
     Args:
         left: The left file dictionary
         right: The right file dictionary

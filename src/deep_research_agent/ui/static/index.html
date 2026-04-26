@@ -163,9 +163,9 @@ body {
             <span id="trace-label" style="font-size:0.72rem;font-weight:600;letter-spacing:0.06em;text-transform:uppercase;color:oklch(0.42 0.14 252);">Agent running…</span>
             <span id="event-count" style="font-size:0.72rem;padding:1px 7px;border-radius:10px;background:oklch(0.94 0.006 240);color:oklch(0.5 0.01 240);">0 events</span>
           </div>
-          <span id="trace-chevron" style="font-size:0.75rem;color:oklch(0.6 0.01 240);display:inline-block;transition:transform 0.2s;transform:rotate(180deg);">▼</span>
+          <span id="trace-chevron" style="font-size:0.75rem;color:oklch(0.6 0.01 240);display:inline-block;transition:transform 0.2s;">▼</span>
         </button>
-        <div id="trace-body" style="padding:4px 18px 16px;border-top:1px solid oklch(0.94 0.005 240);">
+        <div id="trace-body" style="display:none;padding:4px 18px 16px;border-top:1px solid oklch(0.94 0.005 240);">
           <div id="trace-rows" style="margin-top:12px;"></div>
         </div>
       </div>
@@ -219,7 +219,7 @@ body {
 // ── App state ──────────────────────────────────────────────────────────────
 let phase = 'idle';   // 'idle' | 'running' | 'done'
 let digestText = '';
-let traceOpen = true;
+let traceOpen = false;
 let eventCount = 0;
 let currentRunId = null;
 let currentRunDate = '';
@@ -292,9 +292,9 @@ function setRunning() {
   document.getElementById('trace-label').style.color = 'oklch(0.42 0.14 252)';
   document.getElementById('trace-dot').style.display = 'inline-block';
   document.getElementById('event-count').textContent  = '0 events';
-  traceOpen = true;
-  document.getElementById('trace-body').style.display     = 'block';
-  document.getElementById('trace-chevron').style.transform = 'rotate(180deg)';
+  traceOpen = false;
+  document.getElementById('trace-body').style.display     = 'none';
+  document.getElementById('trace-chevron').style.transform = 'none';
 
   // Clear old results
   document.getElementById('digest-panel').style.display       = 'none';

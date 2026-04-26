@@ -129,13 +129,72 @@ Scores raw results against the user's interest profile. Deduplicates across sour
 
 Drops high-signal articles into `vault/raw/` as markdown files with YAML frontmatter (`source_url`, `date_ingested`, `relevance_score`), ready for knowledge base compilation.
 
+## 6. Streaming architecture — why a custom FastAPI server
+
+The project uses a custom FastAPI server + SSE instead of connecting the browser
+directly to LangGraph Server. This is a deliberate trade-off.
+
+### What LangGraph Server provides
+
+LangGraph Server (via `langgraph.json`) already exposes a full REST API with
+SSE streaming (`POST /threads/{id}/runs/stream`), thread persistence,
+background runs, resumable connections, and cron support. Our graph is
+deployable to it today.
+
+### Why we don't use it directly from the browser
+
+LangGraph Server streams **raw LangGraph chunks** — `updates`, `messages-tuple`,
+`values` events containing serialised LangChain message objects with fields like
+`tool_call_chunks`, `langgraph_node`, and namespace tuples for subgraphs.
+
+Our UI needs **domain-specific events**: trace rows (tool / subagent /
+orchestrator), streaming digest tokens, ranked source cards, and run-complete
+metadata. Translating raw chunks into these events requires:
+
+1. **Message-type filtering** — distinguishing `AIMessageChunk` tokens from tool
+   call dispatches by checking `tool_call_chunks` and `langgraph_node`.
+2. **Subgraph namespace tracking** — maintaining a `seen` set of namespace
+   tuples to label and count research sub-agents.
+3. **Post-run source extraction** — parsing the virtual file system
+   (`state["files"]`) into structured source metadata after the stream ends.
+
+Doing this in vanilla JavaScript would mean reimplementing Python-native checks
+(e.g. `isinstance(msg, AIMessageChunk)`) against raw JSON, with no SDK support
+for the `useStream` hook in non-React frontends.
+
+### Current approach: shared `streaming.py` generator
+
+All stream interpretation lives in `streaming.py::stream_events()` — a single
+async generator that consumes `agent.astream()` and yields output-agnostic event
+dicts (`trace`, `digest`, `sources`, `done`, `error`).
+
+Both consumers are thin:
+
+- **FastAPI server** (`ui/server.py`): pipes events into an `asyncio.Queue` → SSE.
+- **CLI** (`examples/utils.py`): renders events with Rich.
+
+### Migration path to LangGraph Server
+
+If we migrate later, two options exist:
+
+- **Option A (custom stream mode):** Use `get_stream_writer()` inside graph
+  nodes to emit our event format via `stream_mode="custom"`. Couples UI
+  concerns into graph logic.
+- **Option B (thin proxy):** Replace `agent.astream()` with
+  `client.runs.stream()` (LangGraph Python SDK) inside `stream_events()`.
+  The server becomes a translation proxy — graph stays clean, consumers
+  unchanged.
+
+Option B is preferred: one function swap in `streaming.py`, zero changes to
+`server.py`, `utils.py`, or `index.html`.
+
 ## Key patterns exercised
 
-| Pattern | Where |
-| --- | --- |
-| Subagent delegation & isolation | Orchestrator -> Search subagents |
-| Multi-tool orchestration | Each subagent manages its own tool set |
-| State management | Results accumulate through the pipeline |
-| Conditional routing | Orchestrator decides which sources to query |
-| Scheduled autonomy | Cron trigger (not human-triggered) |
-| System integration | Wiki Bridge connects to existing vault |
+| Pattern                         | Where                                       |
+| ------------------------------- | ------------------------------------------- |
+| Subagent delegation & isolation | Orchestrator -> Search subagents            |
+| Multi-tool orchestration        | Each subagent manages its own tool set      |
+| State management                | Results accumulate through the pipeline     |
+| Conditional routing             | Orchestrator decides which sources to query |
+| Scheduled autonomy              | Cron trigger (not human-triggered)          |
+| System integration              | Wiki Bridge connects to existing vault      |

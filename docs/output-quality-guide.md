@@ -6,7 +6,7 @@ A diagnostic and improvement guide for why your agent produces shallow outputs a
 
 ## The Problem in Your Example
 
-Your query: *"Find the most recent arxiv papers on LLM agents and summarize their key contributions."*
+Your query: _"Find the most recent arxiv papers on LLM agents and summarize their key contributions."_
 
 The response returned 3 papers with short bullet-point summaries, one of which ("DeVI: Physics-based Dexterous Human-Object Interaction") is barely relevant to LLM agents. That's the key tell: **the agent stopped at the arxiv abstract and never synthesized deeper**. Increasing `max_results` just gave you more shallow summaries.
 
@@ -24,12 +24,12 @@ This is a **compounding failure** across three layers: the model layer, the prom
 
 **Model comparison for agentic research:**
 
-| Model | Optimal Agentic Role | Synthesis Depth |
-|-------|---------------------|-----------------|
-| `gpt-4o-mini` | Sub-agent tool calls, triage, formatting | Low — prone to extreme summarization |
-| `gpt-4o` / `gpt-4.1` | Orchestration, final report generation | High — follows negative constraints well |
-| `o1` / `o3-mini` | Complex data synthesis, scientific review | Very high — native multi-hop reasoning |
-| `claude-3-5-sonnet` | Parallel researcher nodes, long-context extraction | High — exceptional context retention |
+| Model                | Optimal Agentic Role                               | Synthesis Depth                          |
+| -------------------- | -------------------------------------------------- | ---------------------------------------- |
+| `gpt-4o-mini`        | Sub-agent tool calls, triage, formatting           | Low — prone to extreme summarization     |
+| `gpt-4o` / `gpt-4.1` | Orchestration, final report generation             | High — follows negative constraints well |
+| `o1` / `o3-mini`     | Complex data synthesis, scientific review          | Very high — native multi-hop reasoning   |
+| `claude-3-5-sonnet`  | Parallel researcher nodes, long-context extraction | High — exceptional context retention     |
 
 **Fix:** Split the model assignment — strong model for orchestration and synthesis, mini for sub-agent tool calls.
 
@@ -116,6 +116,7 @@ Stop Immediately When: You have 3+ relevant examples/sources
 ```
 
 For "find the most recent LLM agent papers", the sub-agent does:
+
 1. 1 arxiv search → gets 3 papers → `3+ sources found` → **STOP**
 
 It never cross-references with web sources, checks recency independently, or validates relevance.
@@ -164,6 +165,7 @@ Without negative constraints, models default to their trained preference: brief,
 **Fix:** Add three elements to the synthesizer prompt:
 
 **Negative constraints** (explicitly forbid brevity):
+
 ```
 - Do NOT provide brief, high-level summaries
 - Do NOT use bullet points for qualitative analysis — write analytical prose
@@ -171,12 +173,14 @@ Without negative constraints, models default to their trained preference: brief,
 ```
 
 **Expert persona** (anchors the model's output register toward professional literature):
+
 ```
 You are an expert research analyst writing a detailed technical briefing for
 a senior ML engineer. Write at the depth and density of a published survey paper.
 ```
 
 **Depth requirements**:
+
 ```
 ## Depth Requirements
 - Explain the specific contribution per source — not just the topic
@@ -302,6 +306,7 @@ User Query → [Planner Node] → Structured Sub-Queries → [Parallel Researche
 ```
 
 The planner decomposes "find the latest LLM agent papers" into:
+
 - "LLM agent architectures for robotics and physical control"
 - "Multi-agent coordination and alignment frameworks"
 - "LLM agent evaluation benchmarks 2025-2026"
@@ -312,18 +317,18 @@ Each sub-query goes to a dedicated researcher with isolated context. This preven
 
 ## Priority Fix Order
 
-| Priority | Issue | Fix | Effort |
-|----------|-------|-----|--------|
-| 1 | `gpt-4o-mini` for synthesis | Use `gpt-4.1` or `gpt-4o` for orchestrator | Low |
-| 2 | Agent skips `read_file()` | Add mandatory read instruction to `FILE_USAGE_INSTRUCTIONS` | Low |
-| 3 | No output depth in researcher | Add `<Output Format>` block to `RESEARCHER_INSTRUCTIONS` | Low |
-| 4 | No synthesis depth / negative constraints | Add depth requirements + negative constraints + persona to `OUTPUT_FORMAT_INSTRUCTIONS` | Low |
-| 5 | Count-based stop condition | Replace with quality-based stop in `RESEARCHER_INSTRUCTIONS` | Low |
-| 6 | Arxiv returns only abstracts | Option A: LLM expansion; Option B: PDF download | Low–Medium |
-| 7 | No reflection loop | Add Reflection Node + cyclical edges | High |
-| 8 | No XML chain-of-thought | Add `<analysis>` block requirement to synthesizer prompt | Low |
-| 9 | State reducer gaps | Annotate new state fields with `operator.add` | Low |
-| 10 | Context overflow on full docs | Implement Memory Pointer Pattern | High |
+| Priority | Issue                                     | Fix                                                                                     | Effort     |
+| -------- | ----------------------------------------- | --------------------------------------------------------------------------------------- | ---------- |
+| 1        | `gpt-4o-mini` for synthesis               | Use `gpt-4.1` or `gpt-4o` for orchestrator                                              | Low        |
+| 2        | Agent skips `read_file()`                 | Add mandatory read instruction to `FILE_USAGE_INSTRUCTIONS`                             | Low        |
+| 3        | No output depth in researcher             | Add `<Output Format>` block to `RESEARCHER_INSTRUCTIONS`                                | Low        |
+| 4        | No synthesis depth / negative constraints | Add depth requirements + negative constraints + persona to `OUTPUT_FORMAT_INSTRUCTIONS` | Low        |
+| 5        | Count-based stop condition                | Replace with quality-based stop in `RESEARCHER_INSTRUCTIONS`                            | Low        |
+| 6        | Arxiv returns only abstracts              | Option A: LLM expansion; Option B: PDF download                                         | Low–Medium |
+| 7        | No reflection loop                        | Add Reflection Node + cyclical edges                                                    | High       |
+| 8        | No XML chain-of-thought                   | Add `<analysis>` block requirement to synthesizer prompt                                | Low        |
+| 9        | State reducer gaps                        | Annotate new state fields with `operator.add`                                           | Low        |
+| 10       | Context overflow on full docs             | Implement Memory Pointer Pattern                                                        | High       |
 
 ---
 

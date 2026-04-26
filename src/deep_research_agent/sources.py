@@ -2,6 +2,8 @@
 
 Parses the structured markdown files written by search tools (Tavily, arXiv)
 into source metadata dicts suitable for display in the CLI or web UI.
+
+Created by @pytholic on 2026.04.06
 """
 
 import re

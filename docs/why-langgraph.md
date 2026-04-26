@@ -58,7 +58,7 @@ The simplest version of an agent is a ReAct loop: the LLM picks a tool, calls it
 
 ## But couldn't we just build this manually?
 
-Yes — everything above can be implemented in plain Python. A `while` loop, a `dict` for state, `if/else` routing, and direct API calls would technically work. This is the same trade-off as *vanilla JS vs. React* or *raw sockets vs. FastAPI*: it's not about capability, it's about what your team ends up maintaining.
+Yes — everything above can be implemented in plain Python. A `while` loop, a `dict` for state, `if/else` routing, and direct API calls would technically work. This is the same trade-off as _vanilla JS vs. React_ or _raw sockets vs. FastAPI_: it's not about capability, it's about what your team ends up maintaining.
 
 Here's the hidden plumbing that gets built anyway once the project scales:
 
@@ -76,11 +76,11 @@ The rule of thumb: if it's a simple CLI script with one tool, do it manually —
 
 ## Summary
 
-| Concern | Simple LLM loop | LangGraph |
-|---|---|---|
-| Control flow | LLM decides | Explicit edges in code |
-| Human oversight | Not supported | Native breakpoints |
-| Context growth | Unbounded (fills window) | Bounded via state + file offloading |
-| Multi-source search | Sequential | Parallel subagents |
-| Failure isolation | One failure affects all | Per-subagent error handling |
-| Debugging | Raw logs | Visual trace + time travel |
+| Concern             | Simple LLM loop          | LangGraph                           |
+| ------------------- | ------------------------ | ----------------------------------- |
+| Control flow        | LLM decides              | Explicit edges in code              |
+| Human oversight     | Not supported            | Native breakpoints                  |
+| Context growth      | Unbounded (fills window) | Bounded via state + file offloading |
+| Multi-source search | Sequential               | Parallel subagents                  |
+| Failure isolation   | One failure affects all  | Per-subagent error handling         |
+| Debugging           | Raw logs                 | Visual trace + time travel          |
