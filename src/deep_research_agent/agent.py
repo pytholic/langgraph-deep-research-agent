@@ -63,7 +63,7 @@ def create_deep_research_agent(
     delegation_tools = [task_tool]
 
     # Parent agent has access to all tools (search available for trivial cases)
-    all_tools = sub_agent_tools + built_in_tools + delegation_tools
+    all_tools = built_in_tools + delegation_tools
 
     # Format the sub-agent usage instructions with runtime parameters
     subagent_instructions = SUBAGENT_USAGE_INSTRUCTIONS.format(

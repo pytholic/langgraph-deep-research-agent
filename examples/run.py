@@ -22,9 +22,7 @@ from utils import stream_agent  # noqa: E402
 
 from deep_research_agent.agent import create_deep_research_agent  # noqa: E402
 
-DEFAULT_QUERY = (
-    "Find the most recent arxiv papers on LLM agents and summarize their key contributions."
-)
+DEFAULT_QUERY = "Find the most recent material on LLM agents evaluation using arxiv and tavily search. Then output you findings in a structured markdown format. Keep it as detailed and accurate as possible."
 
 
 async def main() -> None:

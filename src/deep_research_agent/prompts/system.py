@@ -107,31 +107,43 @@ Your role is to coordinate research by delegating specific research tasks to sub
 - **Limit iterations** - Stop after {max_researcher_iterations} task delegations if you haven't found adequate sources
 </Hard Limits>
 
+<Critical Rule>
+**NEVER split by source tool.** Each research-agent already has access to BOTH arxiv and web search tools. It will choose the right tool for the query within its own iteration loop.
+
+BAD: Spawning 2 agents — one "search on arXiv" and one "search on Tavily" for the same topic. This produces duplicate results.
+GOOD: Spawning 1 agent for the topic — it will use both arxiv and web search as needed.
+
+Multiple agents are ONLY for genuinely independent sub-topics, NEVER for different search backends on the same topic.
+</Critical Rule>
+
 <Scaling Rules>
-**Simple fact-finding, lists, and rankings** can use a single sub-agent:
-- *Example*: "List the top 10 coffee shops in San Francisco" → Use 1 sub-agent, store in `findings_coffee_shops.md`
+**Single topic** — Use 1 sub-agent. It will search both arxiv and web as needed:
+- *Example*: "Find recent papers on LLM agents evaluation" → 1 sub-agent
 
-**Comparisons** can use a sub-agent for each element of the comparison:
-- *Example*: "Compare OpenAI vs. Anthropic vs. DeepMind approaches to AI safety" → Use 3 sub-agents
-- Store findings in separate files: `findings_openai_safety.md`, `findings_anthropic_safety.md`, `findings_deepmind_safety.md`
+**Comparisons** — Use 1 sub-agent per element of the comparison:
+- *Example*: "Compare OpenAI vs. Anthropic vs. DeepMind approaches to AI safety" → 3 sub-agents, one per company
 
-**Multi-faceted research** can use parallel agents for different aspects:
-- *Example*: "Research renewable energy: costs, environmental impact, and adoption rates" → Use 3 sub-agents
-- Organize findings by aspect in separate files
+**Multi-faceted research** — Use 1 sub-agent per distinct facet:
+- *Example*: "Research renewable energy: costs, environmental impact, and adoption rates" → 3 sub-agents, one per facet
 
 **Important Reminders:**
 - Each **task** call creates a dedicated research agent with isolated context
-- Sub-agents can't see each other's work - provide complete standalone instructions
-- Use clear, specific language - avoid acronyms or abbreviations in task descriptions
+- Sub-agents can't see each other's work — provide complete standalone instructions
+- Use clear, specific language — avoid acronyms or abbreviations in task descriptions
+- Describe the TOPIC, not the tool to use — the sub-agent picks its own tools
 </Scaling Rules>"""
 
 OUTPUT_FORMAT_INSTRUCTIONS = """# OUTPUT FORMAT
+
+**CRITICAL**: Your final text response IS the deliverable. Never tell the user to "read the file" or "check the saved document." Always include the full detailed findings directly in your response.
 
 Always respond in well-structured Markdown:
 - Use `#`, `##`, `###` headings to organize sections
 - Use bullet points or numbered lists for enumerations
 - Use **bold** for key terms and `code` for technical names, commands, or identifiers
 - Use tables for comparisons
-- End with a concise summary or next-steps section where appropriate
+- For each source found, include: title, 2-3 sentence summary of key findings, and why it's relevant
+- End with a concise conclusion or implications section
 
-Do not output plain unformatted prose. Do not wrap the entire response in a code block."""
+Do not output plain unformatted prose. Do not wrap the entire response in a code block.
+Do not refer to internal files — the user cannot see them."""

@@ -7,10 +7,10 @@ context windows containing only their specific task description.
 Created by @pytholic on 2026.04.08
 """
 
-from typing import Annotated, NotRequired
+from typing import Annotated, NotRequired, cast
 
 from langchain.agents import create_agent
-from langchain_core.messages import ToolMessage
+from langchain_core.messages import HumanMessage, ToolMessage
 from langchain_core.tools import BaseTool, InjectedToolCallId, tool
 from langgraph.prebuilt import InjectedState
 from langgraph.types import Command
@@ -97,26 +97,42 @@ def _create_task_tool(
         # Get the requested subagent
         sub_agent = agents[subagent_type]
 
-        # Create isolated context with only the task description
-        # This is the key to context isolation - no parent history
-        state["messages"] = [
-            {
-                "role": "user",
-                "content": description,
-            }
-        ]
+        # Build an isolated copy of the state for the sub-agent.
+        # CRITICAL: we must NOT mutate the shared injected state dict —
+        # concurrent task tool calls share the same reference.
+        isolated_state: dict[str, object] = {
+            "messages": [HumanMessage(content=description)],
+            "files": dict(state.get("files", {})),
+        }
 
         # Execute the sub-agent in isolation
-        result = sub_agent.invoke(state)
+        result = sub_agent.invoke(isolated_state)
 
-        # Return results to parent agent via Command state update
+        # Return results to parent agent via Command state update.
+        # Sub-agent's last message content may be str or a list of structured
+        # content blocks. The parent's ToolMessage validator chokes on raw
+        # dict blocks lacking a "type" field, so flatten everything to text.
+        raw_content = cast(object, result["messages"][-1].content)
+        if isinstance(raw_content, str):
+            last_content: str = raw_content
+        elif isinstance(raw_content, list):
+            parts: list[str] = []
+            for block in cast(list[object], raw_content):
+                if isinstance(block, dict):
+                    parts.append(str(cast(dict[str, object], block).get("text", "")))
+                else:
+                    parts.append(str(block))
+            last_content = "\n".join(parts)
+        else:
+            last_content = str(raw_content)
+
         return Command(
             update={
                 "files": result.get("files", {}),  # Merge any file changes
                 "messages": [
                     # Sub-agent result becomes a ToolMessage in parent context
                     # Hide all other internal messages for parent agent
-                    ToolMessage(result["messages"][-1].content, tool_call_id=tool_call_id)
+                    ToolMessage(last_content, tool_call_id=tool_call_id)
                 ],
             }
         )

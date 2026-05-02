@@ -127,6 +127,11 @@ async def stream_events(
     seen_subgraph_ns: set[tuple[str, ...]] = set()
     current_state: dict[str, Any] = {}
     start = datetime.now()
+    # Track whether the root tools node has fired at least once.
+    # Only stream digest tokens after tools have executed — this prevents
+    # intermediate model turns (planning, todo reads) from leaking into
+    # the digest. The final answer always comes after at least one tool round.
+    root_tools_executed = False
 
     stream_modes: list[StreamMode] = (
         ["updates", "messages", "values"] if streaming else ["updates", "values"]
@@ -160,11 +165,14 @@ async def stream_events(
                 graph = ns[-1] if ns else "root"
 
                 if node == "tools":
+                    if not ns:
+                        root_tools_executed = True
                     # ToolMessage available — extract tool name and result preview.
                     event = _interpret_tool_node(result.get("messages", []), ts, node, graph)
                     if include_raw_messages:
                         event["raw_messages"] = result.get("messages", [])
                     yield event
+
                 elif ns:
                     # Non-empty namespace means this update came from a subgraph
                     # (a spawned research sub-agent), not the root orchestrator.
@@ -172,6 +180,7 @@ async def stream_events(
                     if include_raw_messages:
                         event["raw_messages"] = result.get("messages", [])
                     yield event
+
                 else:
                     # Root orchestrator step — emit a trace row only when the
                     # AIMessage contains tool_calls (i.e. the agent is dispatching).
@@ -182,17 +191,23 @@ async def stream_events(
                         yield event
 
             elif chunk_type == "messages":
-                # Fires token-by-token during generation. Used to stream the
-                # final prose digest to the UI word-by-word. Using `updates`
-                # alone would make the full response appear all at once.
-                # `not msg.tool_call_chunks` filters out tool-dispatch turns
-                # so only the final answer tokens reach the digest stream.
+                # Fires token-by-token during generation. We only stream
+                # digest tokens when ALL of these hold:
+                #  1. Root graph (ns is empty — NOT a subgraph)
+                #  2. Model node generating text
+                #  3. No tool_call_chunks (not a tool-dispatch turn)
+                #  4. Root tools have executed at least once (not an early
+                #     planning turn before any research has happened)
+                # NOTE: metadata["langgraph_ns"] is unreliable (always None).
+                # The chunk-level `ns` tuple is the authoritative namespace source.
                 msg, metadata = data
                 if (
                     isinstance(msg, AIMessageChunk)
+                    and not ns
                     and metadata.get("langgraph_node") == "model"
                     and not msg.tool_call_chunks
                     and msg.content
+                    and root_tools_executed
                 ):
                     yield {"type": "digest", "token": msg.content}
 

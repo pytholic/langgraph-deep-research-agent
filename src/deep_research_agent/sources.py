@@ -30,11 +30,16 @@ def extract_sources(files: dict[str, str]) -> list[dict[str, str | float]]:
         source_type ("arxiv" | "web"), and score.
     """
     sources: list[dict[str, str | float]] = []
+    seen_urls: set[str] = set()
     for filename, content in files.items():
         m = _FILE_HEADER_RE.match(content)
         if not m:
             continue
         url = m.group("url").strip()
+        # filter duplicated urls
+        if url in seen_urls:
+            continue
+        seen_urls.add(url)
         is_arxiv = "arxiv" in filename.lower() or "arxiv.org" in url
         domain = urlparse(url).netloc or url[:40]
         snippet = m.group("summary").strip()

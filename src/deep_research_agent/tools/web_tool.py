@@ -21,7 +21,7 @@ from tavily import TavilyClient
 
 from deep_research_agent.prompts.summarize import SUMMARIZE_WEB_SEARCH
 from deep_research_agent.state import DeepAgentState
-from deep_research_agent.tools.research import SearchResult, Summary, get_today_str
+from deep_research_agent.tools.research import SearchResult, get_today_str
 
 
 class TavilySearchTool:
@@ -77,15 +77,16 @@ class TavilySearchTool:
 
         for result in results:
             raw_content = str(result.get("raw_content") or result.get("content", ""))
+            title = str(result.get("title", "")).strip() or "search_result"
             summary_text: str
 
             if raw_content:
                 summarized = self.summarize(raw_content)
                 summary_text = summarized if summarized else raw_content[:1000]
-                filename = self._make_filename("search_result.md")
             else:
                 summary_text = str(result.get("content", "No content available."))
-                filename = self._make_filename("search_result.md")
+
+            filename = self._make_filename(title)
 
             processed.append(
                 SearchResult(
@@ -109,8 +110,7 @@ class TavilySearchTool:
             Summary string, or None if summarization fails
         """
         try:
-            structured_model = self._summarization_model.with_structured_output(Summary)
-            result = structured_model.invoke(
+            result = self._summarization_model.invoke(
                 [
                     HumanMessage(
                         content=SUMMARIZE_WEB_SEARCH.format(
@@ -119,8 +119,14 @@ class TavilySearchTool:
                     )
                 ]
             )
-            summary = result if isinstance(result, Summary) else None
-            return summary.summary if summary else None
+            text = result.content
+            if isinstance(text, str):
+                return text
+            if isinstance(text, list):
+                return "\n".join(
+                    str(b.get("text", "")) if isinstance(b, dict) else str(b) for b in text
+                )
+            return str(text)
         except Exception:
             return None
 

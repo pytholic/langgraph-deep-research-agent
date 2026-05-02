@@ -9,8 +9,9 @@ Created by @pytholic on 2026.04.15
 import base64
 import functools
 import os
+import threading
 import uuid
-from typing import Annotated
+from typing import Annotated, Final
 
 import arxiv
 from langchain_core.messages import ToolMessage
@@ -21,18 +22,28 @@ from langgraph.types import Command
 from deep_research_agent.state import DeepAgentState
 from deep_research_agent.tools.research import SearchResult, get_today_str
 
+ARXIV_PAGE_SIZE: Final[int] = 5
+ARXIV_DELAY_SECONDS: Final[float] = 3.0
+ARXIV_NUM_RETRIES: Final[int] = 0
+
+_arxiv_api_lock = threading.Lock()
+
 
 class ArxivSearchTool:
     """Academic paper search implementation using the Arxiv API."""
 
     def __init__(self) -> None:
         """Initialize the Arxiv search tool."""
-        self._client = arxiv.Client()
+        self._client = arxiv.Client(
+            page_size=ARXIV_PAGE_SIZE,
+            delay_seconds=ARXIV_DELAY_SECONDS,
+            num_retries=ARXIV_NUM_RETRIES,
+        )
 
     def search(
         self,
         query: str,
-        max_results: int = 1,
+        max_results: int = 3,
         sort_by: arxiv.SortCriterion = arxiv.SortCriterion.Relevance,
     ) -> list[arxiv.Result]:
         """Execute an Arxiv paper search.
@@ -51,7 +62,8 @@ class ArxivSearchTool:
             max_results=max_results,
             sort_by=sort_by,
         )
-        return list(self._client.results(search))
+        with _arxiv_api_lock:
+            return list(self._client.results(search))
 
     def process(self, results: list[arxiv.Result]) -> list[SearchResult]:
         """Process raw Arxiv results into SearchResult objects.
@@ -105,8 +117,8 @@ def arxiv_search(
     query: str,
     state: Annotated[DeepAgentState, InjectedState],
     tool_call_id: Annotated[str, InjectedToolCallId],
-    max_results: Annotated[int, InjectedToolArg] = 1,
-    sort_by: Annotated[arxiv.SortCriterion, InjectedToolArg] = arxiv.SortCriterion.SubmittedDate,
+    max_results: Annotated[int, InjectedToolArg] = 3,
+    sort_by: Annotated[arxiv.SortCriterion, InjectedToolArg] = arxiv.SortCriterion.Relevance,
 ) -> Command:
     """Search Arxiv for academic papers and save results to files.
 
@@ -117,14 +129,28 @@ def arxiv_search(
         query: Search query to execute (paper title, topic, or keywords)
         state: Injected agent state for file storage
         tool_call_id: Injected tool call identifier
-        max_results: Maximum number of results to return (default: 1)
-        sort_by: Sort criterion for results (default: SubmittedDate)
+        max_results: Maximum number of results to return (default: 3)
+        sort_by: Sort criterion for results (default: Relevance)
 
     Returns:
         Command that saves full results to files and provides minimal summary
     """
     tool = _get_arxiv_search_tool()
-    raw = tool.search(query, max_results=max_results, sort_by=sort_by)
+    try:
+        raw = tool.search(query, max_results=max_results, sort_by=sort_by)
+    except arxiv.HTTPError as exc:
+        err_msg = f"Arxiv API request failed (HTTP {exc.status}). "
+        if exc.status == 429:
+            err_msg += (
+                "Rate limited: space out arxiv_search calls (~1 request per 3s per API terms). "
+            )
+        err_msg += "Try a narrower query or continue with web search only."
+        return Command(
+            update={
+                "messages": [ToolMessage(err_msg, tool_call_id=tool_call_id)],
+            }
+        )
+
     results = tool.process(raw)
 
     files = state.get("files", {})
