@@ -13,9 +13,9 @@ from deep_research_agent.tools.web_tool import TavilySearchTool
 
 @pytest.fixture
 def tool(mocker: MockerFixture) -> TavilySearchTool:
-    mocker.patch.dict(os.environ, {"TAVILY_API_KEY": "test-key", "OPENAI_API_KEY": "test-key"})
+    mocker.patch.dict(os.environ, {"TAVILY_API_KEY": "test-key"})
     mocker.patch("deep_research_agent.tools.web_tool.TavilyClient")
-    mocker.patch("deep_research_agent.tools.web_tool.init_chat_model")
+    mocker.patch("deep_research_agent.tools.web_tool.ChatOllama")
     return TavilySearchTool()
 
 

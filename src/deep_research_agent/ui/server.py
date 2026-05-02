@@ -30,7 +30,7 @@ class RunRequest(BaseModel):
     """Request body for POST /api/run."""
 
     query: str
-    model: str = "gpt-4o-mini"
+    model: str = "gemma4:e2b"
     max_agents: int = 3
     max_iter: int = 3
 

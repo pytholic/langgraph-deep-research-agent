@@ -12,9 +12,10 @@ import os
 import uuid
 from typing import Annotated, Literal
 
-from langchain.chat_models import init_chat_model
+# from langchain.chat_models import init_chat_model
 from langchain_core.messages import HumanMessage, ToolMessage
 from langchain_core.tools import InjectedToolArg, InjectedToolCallId, tool
+from langchain_ollama import ChatOllama
 from langgraph.prebuilt import InjectedState
 from langgraph.types import Command
 from tavily import TavilyClient
@@ -27,14 +28,15 @@ from deep_research_agent.tools.research import SearchResult, get_today_str
 class TavilySearchTool:
     """Web search implementation using the Tavily API."""
 
-    def __init__(self, summarization_model_name: str = "gpt-4o-mini") -> None:
+    def __init__(self, summarization_model_name: str = "gemma4:e2b") -> None:
         """Initialize the Tavily search tool.
 
         Args:
             summarization_model_name: LLM model to use for content summarization
         """
         self._client = TavilyClient()
-        self._summarization_model = init_chat_model(model=summarization_model_name)
+        # self._summarization_model = init_chat_model(model=summarization_model_name)
+        self._summarization_model = ChatOllama(model=summarization_model_name, num_ctx=65536)
 
     def search(
         self,

@@ -61,18 +61,19 @@
           <label class="setting-label">Model</label>
           <div class="custom-select" id="model-select">
             <button type="button" class="custom-select-trigger" id="model-select-trigger" aria-haspopup="listbox" aria-expanded="false">
-              <span class="custom-select-value">gpt-4o-mini</span>
+              <span class="custom-select-value">gemma4:e2b</span>
               <svg class="custom-select-caret" width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
                 <polyline points="2 4 5 7 8 4"/>
               </svg>
             </button>
             <ul class="custom-select-menu" role="listbox">
-              <li class="custom-select-option selected" role="option" data-value="gpt-4o-mini">gpt-4o-mini</li>
+              <li class="custom-select-option selected" role="option" data-value="gemma4:e2b">gemma4:e2b</li>
+              <!-- <li class="custom-select-option" role="option" data-value="gpt-4o-mini">gpt-4o-mini</li>
               <li class="custom-select-option" role="option" data-value="gpt-4o">gpt-4o</li>
               <li class="custom-select-option" role="option" data-value="gpt-4.1-mini">gpt-4.1-mini</li>
-              <li class="custom-select-option" role="option" data-value="gpt-4.1">gpt-4.1</li>
+              <li class="custom-select-option" role="option" data-value="gpt-4.1">gpt-4.1</li> -->
             </ul>
-            <input type="hidden" id="set-model" value="gpt-4o-mini">
+            <input type="hidden" id="set-model" value="gemma4:e2b">
           </div>
           <label id="agents-label" class="setting-label setting-label--range">Max concurrent agents: 3</label>
           <input type="range" id="set-agents" class="setting-range" min="1" max="6" value="3">

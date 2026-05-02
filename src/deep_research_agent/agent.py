@@ -7,7 +7,9 @@ Created by @pytholic on 2026.04.16
 """
 
 from langchain.agents import create_agent
-from langchain.chat_models import init_chat_model
+
+# from langchain.chat_models import init_chat_model
+from langchain_ollama import ChatOllama
 from langgraph.pregel import Pregel
 
 from deep_research_agent.prompts.summarize import RESEARCHER_INSTRUCTIONS
@@ -27,21 +29,22 @@ from deep_research_agent.tools.web_tool import tavily_search
 
 
 def create_deep_research_agent(
-    model_name: str = "gpt-4o-mini",
+    model_name: str = "gemma4:e2b",
     max_concurrent_research_units: int = 3,
     max_researcher_iterations: int = 3,
 ) -> Pregel:
     """Assemble and return the deep research agent graph.
 
     Args:
-        model_name: LLM model identifier (default: gpt-4o-mini)
+        model_name: LLM model identifier (default: gemma4:e2b)
         max_concurrent_research_units: Max parallel sub-agents per iteration
         max_researcher_iterations: Max search calls per sub-agent
 
     Returns:
         Compiled LangGraph agent ready to invoke
     """
-    model = init_chat_model(model=model_name, temperature=0.0)
+    # model = init_chat_model(model=model_name, temperature=0.0)
+    model = ChatOllama(model=model_name, temperature=0.0, num_ctx=65536)
 
     # Tools available to research sub-agents
     sub_agent_tools = [tavily_search, arxiv_search, think_tool]

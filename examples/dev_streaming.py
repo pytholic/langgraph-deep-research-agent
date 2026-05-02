@@ -14,10 +14,12 @@ from typing import Any
 
 from dotenv import load_dotenv
 from langchain.agents import create_agent
-from langchain.chat_models import init_chat_model
+
+# from langchain.chat_models import init_chat_model
 from langchain.messages import HumanMessage
 from langchain.tools import tool
 from langchain_core.messages import AIMessageChunk
+from langchain_ollama import ChatOllama
 from langgraph.pregel import Pregel
 
 load_dotenv(override=True)
@@ -36,8 +38,10 @@ def multiply(a: int, b: int) -> int:
     return a * b
 
 
-model_name = "gpt-4o-mini"
-model = init_chat_model(model=model_name, temperature=0.0)
+# model_name = "gpt-4o-mini"
+# model = init_chat_model(model=model_name, temperature=0.0)
+model_name = "gemma4:e2b"
+model = ChatOllama(model=model_name, temperature=0.0, num_ctx=65536)
 agent = create_agent(
     model=model,
     tools=[multiply],

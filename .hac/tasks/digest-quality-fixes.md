@@ -1,8 +1,13 @@
 # Task: Digest Quality Fixes
 
-**Status:** Done (2026-05-02)
-**Created:** 2026-05-02
-**Updated:** 2026-05-02
+| Field        | Value      |
+| ------------ | ---------- |
+| **Status**   | ⚪ Done    |
+| **Priority** | P0         |
+| **Owner**    | @pytholic  |
+| **Created**  | 2026-05-02 |
+| **Updated**  | 2026-05-02 |
+| **Scope**    | ~1 session |
 
 ## Context
 
@@ -16,7 +21,7 @@ Root cause of (1) and (2): the orchestrator prompt encourages splitting by sourc
 
 ## Plan
 
-- [x] Create .ai/ working memory
+- [x] Create working memory
 - [x] Record Option A decision
 - [x] **Fix 1: Update SUBAGENT_USAGE_INSTRUCTIONS** — Added `<Critical Rule>` block: never split by source, BAD/GOOD examples, describe topic not tool.
 - [x] **Fix 2: URL dedup in `sources.py`** — `extract_sources` now tracks `seen_urls` set and skips duplicates.
@@ -32,3 +37,7 @@ Root cause of (1) and (2): the orchestrator prompt encourages splitting by sourc
 ## Open Questions / Risks
 
 - The streaming fix needs careful handling: we can't know for certain a model turn is "final" until we see no tool calls. The heuristic is: if the root model node produces content without tool_call_chunks, and it's after at least one tool execution round, it's likely the final answer. Edge case: the model might do a planning turn with no tool calls before dispatching — but in practice `create_agent` always produces tool calls or a final answer, not bare planning text.
+
+## Session Log
+
+- **2026-05-02:** All three fixes implemented and verified. Single sub-agent dispatched, used both arxiv+tavily, no intermediate turns in digest. Task complete.

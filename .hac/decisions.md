@@ -1,7 +1,23 @@
-# Architectural Decisions
+# Decisions — langgraph-deep-research-agent
 
-Append new decisions at the top. Each entry records context, the choice made,
-the reasoning, and what was explicitly rejected.
+## Quick Reference
+
+| Date       | Decision                           | Choice                        | Impact                                                     |
+| ---------- | ---------------------------------- | ----------------------------- | ---------------------------------------------------------- |
+| 2026-05-02 | Serialize arxiv API access         | Module-level `threading.Lock` | Prevents HTTP 429 from concurrent arxiv calls              |
+| 2026-05-02 | Keep one generalist research-agent | Single agent with both tools  | Avoids duplicate results; cross-source reasoning preserved |
+
+______________________________________________________________________
+
+<!-- Append new decisions below this line, newest first.
+
+Format:
+## YYYY-MM-DD: Decision Title
+- **Context:** What situation or constraint prompted this decision?
+- **Choice:** What did we decide?
+- **Why:** Why this option over others?
+- **Rejected:** What alternatives were considered and why not?
+-->
 
 ## 2026-05-02: Serialize arxiv API access with a module lock
 
@@ -9,14 +25,6 @@ the reasoning, and what was explicitly rejected.
 - **Choice:** A module-level `threading.Lock` wraps `list(client.results(...))`. Optional `ARXIV_DELAY_SECONDS` env var (minimum 3.0). Catch `arxiv.HTTPError` in the tool and return a `ToolMessage` instead of failing the run.
 - **Why:** LangGraph's tool node runs multiple tools concurrently; serialization guarantees at-most-one in-flight arxiv HTTP request per process and preserves the client's rate-limit sleep behavior.
 - **Rejected:** Lowering `delay_seconds` below 3 by default — violates arXiv API terms of use.
-
-<!-- Template:
-## YYYY-MM-DD: Decision Title
-- **Context:** What situation or constraint prompted this decision?
-- **Choice:** What did we decide?
-- **Why:** Why this option over others?
-- **Rejected:** What alternatives were considered and why not?
--->
 
 ## 2026-05-02: Keep one generalist research-agent, add specialists only for genuinely different source types
 
