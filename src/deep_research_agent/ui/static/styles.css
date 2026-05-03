@@ -127,6 +127,10 @@ body {
 .setting-range {
   width: 100%; accent-color: oklch(0.52 0.18 252); margin-top: 2px;
 }
+.setting-group-label--sub {
+  margin-top: 10px; margin-bottom: 8px;
+  color: oklch(0.48 0.08 252);
+}
 
 /* Custom select */
 .custom-select { position: relative; }
@@ -596,6 +600,30 @@ body {
   background: oklch(0.975 0.004 240); font-family: 'DM Mono', monospace;
   font-size: 0.72rem; line-height: 1.5; color: oklch(0.35 0.01 240);
   white-space: pre-wrap; word-break: break-word; border: 1px solid oklch(0.94 0.005 240);
+}
+
+/* ── Parallel agent lanes ────────────────────────────────────────────── */
+.trace-parallel-container {
+  display: flex; gap: 10px; margin: 10px 0;
+  padding: 10px 0;
+  border-top: 1px dashed oklch(0.92 0.005 240);
+  border-bottom: 1px dashed oklch(0.92 0.005 240);
+}
+.trace-lane {
+  flex: 1; min-width: 0;
+  padding: 8px 10px;
+  border-radius: 8px;
+  background: oklch(0.985 0.003 240);
+  border: 1px solid oklch(0.93 0.005 240);
+  border-top: 3px solid oklch(0.52 0.16 252);
+  max-height: 320px; overflow-y: auto;
+}
+.trace-lane-header {
+  font-family: 'DM Mono', monospace;
+  font-size: 0.68rem; font-weight: 700;
+  letter-spacing: 0.04em; text-transform: uppercase;
+  margin-bottom: 8px; padding-bottom: 6px;
+  border-bottom: 1px solid oklch(0.93 0.005 240);
 }
 
 /* ── Source cards ─────────────────────────────────────────────────────── */

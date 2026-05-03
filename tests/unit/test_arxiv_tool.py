@@ -40,17 +40,10 @@ def test_process_empty_results_returns_empty_list(tool: ArxivSearchTool) -> None
     assert tool.process([]) == []
 
 
-def test_process_filename_ends_with_md(tool: ArxivSearchTool) -> None:
+def test_process_leaves_filename_empty_for_tool_level_assignment(tool: ArxivSearchTool) -> None:
+    """Filenames are assigned at the tool-call level (arxiv_001.md etc), not in process()."""
     result = _make_arxiv_result(title="Some Paper")
 
     processed = tool.process([result])
 
-    assert processed[0].filename.endswith(".md")
-
-
-def test_process_filenames_are_unique_for_same_title(tool: ArxivSearchTool) -> None:
-    results = [_make_arxiv_result(title="Same Title"), _make_arxiv_result(title="Same Title")]
-
-    processed = tool.process(results)
-
-    assert processed[0].filename != processed[1].filename
+    assert processed[0].filename == ""

@@ -54,7 +54,7 @@ def _interpret_tool_node(
 
 def _interpret_subagent_node(
     ns: tuple[str, ...],
-    seen: set[tuple[str, ...]],
+    seen: dict[tuple[str, ...], int],
     ts: str,
     node: str,
     graph: str,
@@ -62,12 +62,14 @@ def _interpret_subagent_node(
     """Build a trace event for a subgraph update."""
     is_new = ns not in seen
     if is_new:
-        seen.add(ns)
+        seen[ns] = len(seen) + 1
+    agent_num = seen[ns]
     return {
         "type": "trace",
         "event_type": "subagent",
-        "label": f"research-agent #{len(seen)}",
+        "label": f"research-agent #{agent_num}",
         "message": "Sub-agent spawned" if is_new else "Sub-agent working",
+        "agent_id": agent_num,
         "node": node,
         "graph": graph,
         "ts": ts,
@@ -124,7 +126,7 @@ async def stream_events(
         include_raw_messages: If True, attach LangChain message objects to
             trace events for local renderers. Keep False for JSON/SSE consumers.
     """
-    seen_subgraph_ns: set[tuple[str, ...]] = set()
+    seen_subgraph_ns: dict[tuple[str, ...], int] = {}
     current_state: dict[str, Any] = {}
     start = datetime.now()
     # Track whether the root tools node has fired at least once.
@@ -169,6 +171,8 @@ async def stream_events(
                         root_tools_executed = True
                     # ToolMessage available — extract tool name and result preview.
                     event = _interpret_tool_node(result.get("messages", []), ts, node, graph)
+                    if ns and ns in seen_subgraph_ns:
+                        event["agent_id"] = seen_subgraph_ns[ns]
                     if include_raw_messages:
                         event["raw_messages"] = result.get("messages", [])
                     yield event

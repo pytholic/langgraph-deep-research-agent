@@ -7,11 +7,9 @@ Created by @pytholic on 2026.04.16
 """
 
 from langchain.agents import create_agent
-
-# from langchain.chat_models import init_chat_model
-from langchain_ollama import ChatOllama
 from langgraph.pregel import Pregel
 
+from deep_research_agent.models import OllamaModel, OpenAIModel, Provider, create_model
 from deep_research_agent.prompts.summarize import RESEARCHER_INSTRUCTIONS
 from deep_research_agent.prompts.system import (
     FILE_USAGE_INSTRUCTIONS,
@@ -29,69 +27,72 @@ from deep_research_agent.tools.web_tool import tavily_search
 
 
 def create_deep_research_agent(
-    model_name: str = "gemma4:e2b",
+    orchestrator_provider: str = Provider.OLLAMA,
+    orchestrator_model_name: str = OllamaModel.GEMMA4_E2B,
+    researcher_provider: str = Provider.OPENAI,
+    researcher_model_name: str = OpenAIModel.GPT5_NANO,
     max_concurrent_research_units: int = 3,
-    max_researcher_iterations: int = 3,
+    max_researcher_iterations: int = 8,
 ) -> Pregel:
     """Assemble and return the deep research agent graph.
 
     Args:
-        model_name: LLM model identifier (default: gemma4:e2b)
-        max_concurrent_research_units: Max parallel sub-agents per iteration
-        max_researcher_iterations: Max search calls per sub-agent
+        orchestrator_provider: Provider for the orchestrator model (e.g. ``"ollama"``).
+        orchestrator_model_name: Model name for the orchestrator (synthesis, planning).
+        researcher_provider: Provider for researcher sub-agents (e.g. ``"openai"``).
+        researcher_model_name: Model name for researcher sub-agents (tool calls, search).
+        max_concurrent_research_units: Max parallel sub-agents per iteration.
+        max_researcher_iterations: Max search calls per sub-agent.
 
     Returns:
-        Compiled LangGraph agent ready to invoke
+        Compiled LangGraph agent ready to invoke.
     """
-    # model = init_chat_model(model=model_name, temperature=0.0)
-    model = ChatOllama(model=model_name, temperature=0.0, num_ctx=65536)
+    orchestrator_model = create_model(orchestrator_provider, orchestrator_model_name)
+    researcher_model = create_model(researcher_provider, researcher_model_name)
 
-    # Tools available to research sub-agents
-    sub_agent_tools = [tavily_search, arxiv_search, think_tool]
-
-    # Tools available to the parent agent
-    built_in_tools = [ls, read_file, write_file, write_todos, read_todos, think_tool]
-
-    # Configure the research sub-agent
+    sub_agent_tools = [read_file, ls, tavily_search, arxiv_search, think_tool]
     research_sub_agent = {
         "name": "research-agent",
         "description": "Delegate research to the sub-agent researcher. Only give this researcher one topic at a time.",
         "prompt": RESEARCHER_INSTRUCTIONS.format(date=get_today_str()),
-        "tools": ["tavily_search", "arxiv_search", "think_tool"],
+        "tools": ["read_file", "ls", "tavily_search", "arxiv_search", "think_tool"],
     }
+    task_tool = _create_task_tool(
+        sub_agent_tools, [research_sub_agent], researcher_model, DeepAgentState
+    )
 
-    # Create the task delegation tool (enables sub-agent context isolation)
-    task_tool = _create_task_tool(sub_agent_tools, [research_sub_agent], model, DeepAgentState)
+    all_tools = [ls, read_file, write_file, write_todos, read_todos, think_tool, task_tool]
+    instructions = _build_system_prompt(max_concurrent_research_units, max_researcher_iterations)
 
-    delegation_tools = [task_tool]
+    return create_agent(
+        orchestrator_model, all_tools, system_prompt=instructions, state_schema=DeepAgentState
+    )
 
-    # Parent agent has access to all tools (search available for trivial cases)
-    all_tools = built_in_tools + delegation_tools
 
-    # Format the sub-agent usage instructions with runtime parameters
+def _build_system_prompt(max_concurrent_research_units: int, max_researcher_iterations: int) -> str:
+    """Assemble the orchestrator system prompt from section constants.
+
+    Args:
+        max_concurrent_research_units: Injected into sub-agent delegation instructions.
+        max_researcher_iterations: Injected into sub-agent delegation instructions.
+
+    Returns:
+        Full system prompt string.
+    """
     subagent_instructions = SUBAGENT_USAGE_INSTRUCTIONS.format(
         max_concurrent_research_units=max_concurrent_research_units,
         max_researcher_iterations=max_researcher_iterations,
     )
-
-    # Assemble the full system prompt
-    instructions = (
+    sep = "\n\n" + "=" * 80 + "\n\n"
+    return (
         "# TODO MANAGEMENT\n"
         + TODO_USAGE_INSTRUCTIONS
-        + "\n\n"
-        + "=" * 80
-        + "\n\n"
+        + sep
         + "# FILE SYSTEM USAGE\n"
         + FILE_USAGE_INSTRUCTIONS
-        + "\n\n"
-        + "=" * 80
-        + "\n\n"
+        + sep
         + "# SUB-AGENT DELEGATION\n"
         + subagent_instructions
-        + "\n\n"
-        + "=" * 80
-        + "\n\n"
+        + sep
         + OUTPUT_FORMAT_INSTRUCTIONS
     )
-
-    return create_agent(model, all_tools, system_prompt=instructions, state_schema=DeepAgentState)

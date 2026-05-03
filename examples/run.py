@@ -24,12 +24,23 @@ from deep_research_agent.agent import create_deep_research_agent  # noqa: E402
 
 DEFAULT_QUERY = "Find the most recent material on LLM agents evaluation using arxiv and tavily search. Then output you findings in a structured markdown format. Keep it as detailed and accurate as possible."
 
+# # Multi-faceted research example
+# DEFAULT_QUERY = "Compare OpenAI vs. Anthropic vs. DeepMind approaches to AI safety"
+
 
 async def main() -> None:
     """Run the research agent with an optional query argument."""
     query = sys.argv[1] if len(sys.argv) > 1 else DEFAULT_QUERY
 
-    agent = create_deep_research_agent()
+    agent = create_deep_research_agent(
+        orchestrator_provider="ollama",
+        orchestrator_model_name="gemma4:e2b",
+        researcher_provider="openai",
+        researcher_model_name="gpt-5-nano",
+        max_concurrent_research_units=3,
+        max_researcher_iterations=8,
+    )
+
     await stream_agent(agent, {"messages": [{"role": "user", "content": query}]})
 
 

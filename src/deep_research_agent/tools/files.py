@@ -51,7 +51,8 @@ def read_file(
     """
     files = state.get("files", {})
     if file_path not in files:
-        return f"Error: File '{file_path}' not found"
+        available = list(files.keys())
+        return f"Error: File '{file_path}' not found. Call ls() to see available files: {available}"
 
     content = files[file_path]
     if not content:

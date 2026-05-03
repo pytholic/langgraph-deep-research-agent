@@ -15,6 +15,12 @@ from pydantic import BaseModel
 load_dotenv(override=True)
 
 from deep_research_agent.agent import create_deep_research_agent  # noqa: E402
+from deep_research_agent.models import (  # noqa: E402
+    MODELS_BY_PROVIDER,
+    OllamaModel,
+    OpenAIModel,
+    Provider,
+)
 from deep_research_agent.streaming import StreamEvent, stream_events  # noqa: E402
 
 app = FastAPI()
@@ -30,9 +36,12 @@ class RunRequest(BaseModel):
     """Request body for POST /api/run."""
 
     query: str
-    model: str = "gemma4:e2b"
-    max_agents: int = 3
-    max_iter: int = 3
+    orchestrator_provider: str = Provider.OLLAMA
+    orchestrator_model_name: str = OllamaModel.GEMMA4_E2B
+    researcher_provider: str = Provider.OPENAI
+    researcher_model_name: str = OpenAIModel.GPT5_NANO
+    max_agents: int = 1
+    max_iter: int = 8
 
 
 async def _stream_agent(run_id: str, req: RunRequest) -> None:
@@ -40,7 +49,10 @@ async def _stream_agent(run_id: str, req: RunRequest) -> None:
     queue = _run_queues[run_id]
 
     agent = create_deep_research_agent(
-        model_name=req.model,
+        orchestrator_provider=req.orchestrator_provider,
+        orchestrator_model_name=req.orchestrator_model_name,
+        researcher_provider=req.researcher_provider,
+        researcher_model_name=req.researcher_model_name,
         max_concurrent_research_units=req.max_agents,
         max_researcher_iterations=req.max_iter,
     )
@@ -69,6 +81,12 @@ async def _sse_generator(run_id: str) -> AsyncGenerator[str]:
         await asyncio.sleep(0)
 
     _run_queues.pop(run_id, None)
+
+
+@app.get("/api/models")
+async def get_models() -> dict[str, list[str]]:
+    """Return available providers and their model lists."""
+    return MODELS_BY_PROVIDER
 
 
 @app.post("/api/run")

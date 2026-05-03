@@ -73,6 +73,25 @@ class SearchToolProtocol(Protocol):
         ...
 
 
+def append_searched_query(searched: list[str], query: str) -> tuple[list[str], str]:
+    """Append a query to the searched list and return the updated list with a context footer.
+
+    Args:
+        searched: Queries already searched this session
+        query: The query just executed
+
+    Returns:
+        Tuple of (updated_searched_list, footer_text_to_append_to_tool_message)
+    """
+    updated = [*searched, query]
+    lines = "\n".join(f"- {q}" for q in updated)
+    footer = (
+        f"\n\n🔍 Queries searched this session:\n{lines}"
+        "\n\nOnly search again if your next query covers genuinely different ground."
+    )
+    return updated, footer
+
+
 def get_today_str() -> str:
     """Get current date in a human-readable format."""
     return datetime.now().strftime("%a %b %-d, %Y")
