@@ -79,7 +79,7 @@ def _create_task_tool(
     other_agents_string = [f"- {_agent['name']}: {_agent['description']}" for _agent in subagents]
 
     @tool(description=TASK_DESCRIPTION_PREFIX.format(other_agents=other_agents_string))
-    def task(
+    async def task(
         description: str,
         subagent_type: str,
         state: Annotated[DeepAgentState, InjectedState],
@@ -100,13 +100,17 @@ def _create_task_tool(
         # Build an isolated copy of the state for the sub-agent.
         # CRITICAL: we must NOT mutate the shared injected state dict —
         # concurrent task tool calls share the same reference.
+        # Use last 4 chars of tool_call_id as file prefix (the unique part,
+        # since LangGraph prefixes all IDs with "call_").
         isolated_state: dict[str, object] = {
             "messages": [HumanMessage(content=description)],
             "files": dict(state.get("files", {})),
+            "searched_queries": list(state.get("searched_queries", [])),
+            "file_prefix": tool_call_id[-4:],
         }
 
         # Execute the sub-agent in isolation
-        result = sub_agent.invoke(isolated_state)
+        result = await sub_agent.ainvoke(isolated_state)
 
         # Return results to parent agent via Command state update.
         # Sub-agent's last message content may be str or a list of structured
@@ -129,6 +133,7 @@ def _create_task_tool(
         return Command(
             update={
                 "files": result.get("files", {}),  # Merge any file changes
+                "searched_queries": result.get("searched_queries", []),
                 "messages": [
                     # Sub-agent result becomes a ToolMessage in parent context
                     # Hide all other internal messages for parent agent

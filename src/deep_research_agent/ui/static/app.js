@@ -22,7 +22,7 @@ const $ = (id) => document.getElementById(id);
 window.addEventListener('DOMContentLoaded', () => {
   renderHistoryList();
   initViewSwitching();
-  initCustomSelect();
+  initModelSelects();
 
   $('query-input').addEventListener('input', updateRunBtn);
   $('query-input').addEventListener('keydown', (e) => {
@@ -54,14 +54,10 @@ function initViewSwitching() {
   navItems.forEach((n) => n.addEventListener('click', () => switchView(n.dataset.view)));
 }
 
-// ── Custom model dropdown ───────────────────────────────────────────────
-function initCustomSelect() {
-  const wrap = $('model-select');
-  if (!wrap) return;
-  const trigger = $('model-select-trigger');
-  const valueEl = wrap.querySelector('.custom-select-value');
-  const hidden = $('set-model');
-  const options = wrap.querySelectorAll('.custom-select-option');
+// ── Generic custom select ───────────────────────────────────────────────
+function initCustomSelect(wrap) {
+  const trigger = wrap.querySelector('.custom-select-trigger');
+  const menu    = wrap.querySelector('.custom-select-menu');
 
   trigger.addEventListener('click', (e) => {
     e.stopPropagation();
@@ -69,15 +65,13 @@ function initCustomSelect() {
     trigger.setAttribute('aria-expanded', open ? 'true' : 'false');
   });
 
-  options.forEach((opt) => {
-    opt.addEventListener('click', () => {
-      const v = opt.dataset.value;
-      hidden.value = v;
-      valueEl.textContent = v;
-      options.forEach((o) => o.classList.toggle('selected', o === opt));
-      wrap.classList.remove('open');
-      trigger.setAttribute('aria-expanded', 'false');
-    });
+  menu.addEventListener('click', (e) => {
+    const opt = e.target.closest('.custom-select-option');
+    if (!opt) return;
+    setCustomSelectValue(wrap, opt.dataset.value);
+    wrap.classList.remove('open');
+    trigger.setAttribute('aria-expanded', 'false');
+    wrap.dispatchEvent(new Event('change'));
   });
 
   document.addEventListener('click', (e) => {
@@ -86,6 +80,64 @@ function initCustomSelect() {
       trigger.setAttribute('aria-expanded', 'false');
     }
   });
+}
+
+function setCustomSelectValue(wrap, value) {
+  const valueEl = wrap.querySelector('.custom-select-value');
+  const hidden  = wrap.querySelector('input[type="hidden"]');
+  const options = wrap.querySelectorAll('.custom-select-option');
+  hidden.value       = value;
+  valueEl.textContent = value;
+  options.forEach((o) => o.classList.toggle('selected', o.dataset.value === value));
+}
+
+function populateCustomSelect(wrapId, options, defaultValue) {
+  const wrap    = $(wrapId);
+  const menu    = wrap.querySelector('.custom-select-menu');
+  const current = wrap.querySelector('input[type="hidden"]').value;
+  const selected = options.includes(current) ? current : (defaultValue ?? options[0]);
+  menu.innerHTML = options
+    .map((o) => `<li class="custom-select-option${o === selected ? ' selected' : ''}" role="option" data-value="${o}">${o}</li>`)
+    .join('');
+  setCustomSelectValue(wrap, selected);
+}
+
+function getCustomSelectValue(wrapId) {
+  return $(wrapId).querySelector('input[type="hidden"]').value;
+}
+
+// ── Model selects (provider → model cascade) ────────────────────────────
+let modelsData = {};
+
+async function initModelSelects() {
+  try {
+    const resp = await fetch('/api/models');
+    modelsData = await resp.json();
+  } catch (_) {
+    modelsData = {
+      ollama: ['gemma4:e2b', 'phi4-mini:3.8b'],
+      openai: ['gpt-5-nano', 'gpt-4o-mini', 'gpt-5.1'],
+    };
+  }
+
+  ['set-orch-provider', 'set-orch-model', 'set-res-provider', 'set-res-model'].forEach((id) =>
+    initCustomSelect($(id))
+  );
+
+  const providers = Object.keys(modelsData);
+  populateCustomSelect('set-orch-provider', providers, providers[0]);
+  populateCustomSelect('set-res-provider', providers, providers[1] ?? providers[0]);
+  updateModelOptions('orch');
+  updateModelOptions('res');
+
+  $('set-orch-provider').addEventListener('change', () => updateModelOptions('orch'));
+  $('set-res-provider').addEventListener('change', () => updateModelOptions('res'));
+}
+
+function updateModelOptions(prefix) {
+  const provider = getCustomSelectValue(`set-${prefix}-provider`);
+  const models   = modelsData[provider] || [];
+  populateCustomSelect(`set-${prefix}-model`, models);
 }
 
 // ── Settings highlight (scroll sidebar into view + pulse) ───────────────
@@ -211,14 +263,77 @@ const TRACE_COLORS = {
   subagent: { bg: 'oklch(0.97 0.05 145)',  text: 'oklch(0.38 0.12 145)', dot: 'oklch(0.55 0.15 145)' },
 };
 
+const AGENT_LANE_COLORS = [
+  'oklch(0.52 0.16 252)',
+  'oklch(0.52 0.15 145)',
+  'oklch(0.55 0.14 30)',
+  'oklch(0.50 0.14 300)',
+  'oklch(0.50 0.12 60)',
+  'oklch(0.45 0.14 200)',
+];
+
+let parallelContainer = null;
+let activeLanes = {};
+
+function getOrCreateParallelContainer() {
+  if (!parallelContainer || !parallelContainer.parentNode) {
+    parallelContainer = document.createElement('div');
+    parallelContainer.className = 'trace-parallel-container';
+    $('trace-rows').appendChild(parallelContainer);
+  }
+  return parallelContainer;
+}
+
+function getOrCreateLane(agentId) {
+  const container = getOrCreateParallelContainer();
+  if (!activeLanes[agentId]) {
+    const lane = document.createElement('div');
+    lane.className = 'trace-lane';
+    const colorIdx = (agentId - 1) % AGENT_LANE_COLORS.length;
+    lane.style.borderTopColor = AGENT_LANE_COLORS[colorIdx];
+    const header = document.createElement('div');
+    header.className = 'trace-lane-header';
+    header.style.color = AGENT_LANE_COLORS[colorIdx];
+    header.textContent = `Agent #${agentId}`;
+    lane.appendChild(header);
+    container.appendChild(lane);
+    activeLanes[agentId] = lane;
+  }
+  return activeLanes[agentId];
+}
+
+function endParallelContainer() {
+  parallelContainer = null;
+  activeLanes = {};
+}
+
 function appendTraceRow(ev) {
   eventCount++;
   $('event-count').textContent = `${eventCount} events`;
 
-  const c   = TRACE_COLORS[ev.event_type] || TRACE_COLORS.agent;
+  const c = TRACE_COLORS[ev.event_type] || TRACE_COLORS.agent;
+  const agentId = ev.agent_id;
+
+  // If this event belongs to a sub-agent, render in a lane
+  if (agentId) {
+    const lane = getOrCreateLane(agentId);
+    const row = buildTraceRowEl(ev, c);
+    lane.appendChild(row);
+  } else {
+    // Root-level event — end any parallel container and append normally
+    if (parallelContainer) endParallelContainer();
+    const row = buildTraceRowEl(ev, c);
+    $('trace-rows').appendChild(row);
+  }
+
+  const body = $('trace-body');
+  body.scrollTop = body.scrollHeight;
+}
+
+function buildTraceRowEl(ev, c) {
   const row = document.createElement('div');
   row.className = 'trace-row-enter';
-  row.style.cssText = 'display:flex;gap:12px;align-items:flex-start;margin-bottom:8px;';
+  row.style.cssText = 'display:flex;gap:10px;align-items:flex-start;margin-bottom:6px;';
 
   const detailId = `detail-${eventCount}`;
   const hasDetail = ev.detail && ev.detail.trim().length > 0;
@@ -228,14 +343,14 @@ function appendTraceRow(ev) {
 
   row.innerHTML = `
     <div style="flex-shrink:0;padding-top:4px;">
-      <div style="width:8px;height:8px;border-radius:50%;background:${c.dot};"></div>
+      <div style="width:7px;height:7px;border-radius:50%;background:${c.dot};"></div>
     </div>
     <div style="flex:1;min-width:0;">
-      <div style="display:flex;align-items:center;gap:8px;margin-bottom:2px;">
-        <span style="font-family:'DM Mono',monospace;font-size:0.7rem;color:oklch(0.65 0.01 240);">${ev.ts}</span>
-        <span style="font-size:0.72rem;font-weight:600;padding:1px 6px;border-radius:4px;background:${c.bg};color:${c.text};">${ev.label}</span>
+      <div style="display:flex;align-items:center;gap:6px;margin-bottom:2px;">
+        <span style="font-family:'DM Mono',monospace;font-size:0.68rem;color:oklch(0.65 0.01 240);">${ev.ts}</span>
+        <span style="font-size:0.7rem;font-weight:600;padding:1px 5px;border-radius:4px;background:${c.bg};color:${c.text};">${ev.label}</span>
       </div>
-      <div style="font-size:0.84rem;color:oklch(0.28 0.01 240);line-height:1.5;">${ev.message}</div>
+      <div style="font-size:0.82rem;color:oklch(0.28 0.01 240);line-height:1.4;">${ev.message}</div>
       ${detailHtml}
     </div>
   `;
@@ -247,9 +362,7 @@ function appendTraceRow(ev) {
     });
   }
 
-  $('trace-rows').appendChild(row);
-  const body = $('trace-body');
-  body.scrollTop = body.scrollHeight;
+  return row;
 }
 
 function toggleDetail(id, btn) {
@@ -307,16 +420,27 @@ async function handleRun() {
 
   setRunning();
 
-  const model     = $('set-model').value;
-  const maxAgents = parseInt($('set-agents').value);
-  const maxIter   = parseInt($('set-iter').value);
+  const orchProvider = getCustomSelectValue('set-orch-provider');
+  const orchModel    = getCustomSelectValue('set-orch-model');
+  const resProvider  = getCustomSelectValue('set-res-provider');
+  const resModel     = getCustomSelectValue('set-res-model');
+  const maxAgents    = parseInt($('set-agents').value);
+  const maxIter      = parseInt($('set-iter').value);
 
   let runId;
   try {
     const resp = await fetch('/api/run', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ query, model, max_agents: maxAgents, max_iter: maxIter }),
+      body: JSON.stringify({
+        query,
+        orchestrator_provider: orchProvider,
+        orchestrator_model_name: orchModel,
+        researcher_provider: resProvider,
+        researcher_model_name: resModel,
+        max_agents: maxAgents,
+        max_iter: maxIter,
+      }),
     });
     ({ run_id: runId } = await resp.json());
   } catch (err) {

@@ -6,11 +6,7 @@ and exposes a LangGraph-compatible @tool wrapper.
 Created by @pytholic on 2026.04.15
 """
 
-import base64
 import functools
-import os
-import threading
-import uuid
 from typing import Annotated, Final
 
 import arxiv
@@ -20,13 +16,11 @@ from langgraph.prebuilt import InjectedState
 from langgraph.types import Command
 
 from deep_research_agent.state import DeepAgentState
-from deep_research_agent.tools.research import SearchResult, get_today_str
+from deep_research_agent.tools.research import SearchResult, append_searched_query, get_today_str
 
 ARXIV_PAGE_SIZE: Final[int] = 5
 ARXIV_DELAY_SECONDS: Final[float] = 3.0
 ARXIV_NUM_RETRIES: Final[int] = 0
-
-_arxiv_api_lock = threading.Lock()
 
 
 class ArxivSearchTool:
@@ -62,14 +56,10 @@ class ArxivSearchTool:
             max_results=max_results,
             sort_by=sort_by,
         )
-        with _arxiv_api_lock:
-            return list(self._client.results(search))
+        return list(self._client.results(search))
 
     def process(self, results: list[arxiv.Result]) -> list[SearchResult]:
         """Process raw Arxiv results into SearchResult objects.
-
-        For now we will use abstract as the summary.
-        TODO: Implement  llm-basedsummarization.
 
         Args:
             results: Raw results from search()
@@ -85,25 +75,12 @@ class ArxivSearchTool:
                     title=result.title,
                     url=result.entry_id,
                     summary=result.summary,
-                    filename=self._make_filename(result.title),
+                    filename="",
                     raw_content="",
                 )
             )
 
         return processed
-
-    def _make_filename(self, base: str) -> str:
-        """Generate a unique filename from a base name.
-
-        Args:
-            base: Base filename (may or may not include extension)
-
-        Returns:
-            Unique filename with uid suffix
-        """
-        uid = base64.urlsafe_b64encode(uuid.uuid4().bytes).rstrip(b"=").decode("ascii")[:8]
-        name, ext = os.path.splitext(base)
-        return f"{name}_{uid}{ext or '.md'}"
 
 
 @functools.lru_cache(maxsize=1)
@@ -135,6 +112,8 @@ def arxiv_search(
     Returns:
         Command that saves full results to files and provides minimal summary
     """
+    searched_queries = state.get("searched_queries", [])
+
     tool = _get_arxiv_search_tool()
     try:
         raw = tool.search(query, max_results=max_results, sort_by=sort_by)
@@ -153,33 +132,39 @@ def arxiv_search(
 
     results = tool.process(raw)
 
-    files = state.get("files", {})
+    files = dict(state.get("files", {}))
+    prefix = state.get("file_prefix", "")
+    file_tag = f"{prefix}_arxiv" if prefix else "arxiv"
+    existing = sum(1 for k in files if k.startswith(f"{file_tag}_"))
     saved_files: list[str] = []
     summaries: list[str] = []
 
-    for result in results:
+    for i, result in enumerate(results):
+        filename = f"{file_tag}_{existing + i + 1:03d}.md"
         file_content = (
-            f"# Arxiv Paper: {result.title}\n\n"
+            f"# {result.title}\n\n"
             f"**URL:** {result.url}\n"
             f"**Query:** {query}\n"
             f"**Date:** {get_today_str()}\n\n"
             f"## Summary\n{result.summary}\n\n"
-            f"## Raw Content\n{result.raw_content or 'No raw content available'}\n"
         )
-        files[result.filename] = file_content
-        saved_files.append(result.filename)
-        summaries.append(f"- {result.filename}: {result.summary}...")
+        files[filename] = file_content
+        saved_files.append(filename)
+        summaries.append(f"- {filename}: {result.title}")
 
+    updated_searched, searched_footer = append_searched_query(searched_queries, query)
+    file_list = "\n".join(f"  - {f}" for f in saved_files)
     summary_text = (
         f"📄 Found {len(results)} paper(s) for '{query}':\n\n"
         + "\n".join(summaries)
-        + f"\n\n📄 Files saved: {', '.join(saved_files)}"
-        + "\n\n💡 Use read_file() to access full details when needed."
+        + f"\n\nSaved files:\n{file_list}"
+        + searched_footer
     )
 
     return Command(
         update={
             "files": files,
+            "searched_queries": updated_searched,
             "messages": [ToolMessage(summary_text, tool_call_id=tool_call_id)],
         }
     )

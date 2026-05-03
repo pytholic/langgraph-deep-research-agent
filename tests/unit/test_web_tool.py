@@ -20,18 +20,20 @@ def tool(mocker: MockerFixture) -> TavilySearchTool:
 
 
 @pytest.mark.parametrize(
-    ("raw_result", "summarize_return", "expected_summary_prefix"),
+    ("raw_result", "summarize_return", "expected_summary_prefix", "use_summarize"),
     [
         pytest.param(
             {"title": "Test Page", "url": "https://example.com", "raw_content": "full content"},
             "LLM summary",
             "LLM summary",
+            True,
             id="raw_content_present_uses_llm_summary",
         ),
         pytest.param(
             {"title": "Test Page", "url": "https://example.com", "raw_content": "full content"},
             None,
             "full content",
+            True,
             id="summarize_returns_none_falls_back_to_truncated_raw",
         ),
         pytest.param(
@@ -43,6 +45,7 @@ def tool(mocker: MockerFixture) -> TavilySearchTool:
             },
             None,
             "snippet",
+            False,
             id="no_raw_content_uses_tavily_snippet",
         ),
     ],
@@ -53,10 +56,11 @@ def test_process_summary_fallback(
     raw_result: dict,
     summarize_return: str | None,
     expected_summary_prefix: str,
+    use_summarize: bool,
 ) -> None:
     mocker.patch.object(tool, "summarize", return_value=summarize_return)
 
-    results = tool.process([raw_result])
+    results = tool.process([raw_result], summarize=use_summarize)
 
     assert len(results) == 1
     assert results[0].summary.startswith(expected_summary_prefix)

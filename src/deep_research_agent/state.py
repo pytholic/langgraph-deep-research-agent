@@ -51,13 +51,37 @@ def file_reducer(left: dict[str, str], right: dict[str, str]) -> dict[str, str]:
     return {**left, **right}
 
 
+def list_reducer(left: list[str], right: list[str]) -> list[str]:
+    """Merge two lists, with right taking precedence.
+
+    Used as a reducer function for the searched_queries field in agent state,
+    allowing incremental updates to the searched_queries list.
+
+    It merges lists additively so parallel sub-agents can write distinct queries without
+    clobbering each other.
+
+    Args:
+        left: The left list
+        right: The right list
+
+    Returns:
+        A merged list with right values overriding left values
+    """
+    seen = set(left or [])
+    return (left or []) + [query for query in (right or []) if query not in seen]
+
+
 class DeepAgentState(AgentState):
     """Extended agent state that includes task tracking and virtual file system.
 
     Inherits from LangGraph's AgentState and adds:
     - todos: List of Todo items for task planning and progress tracking
     - files: Virtual file system stored as dict mapping filenames to content
+    - searched_queries: List of queries that have been searched
+    - file_prefix: Short prefix for filenames, set per sub-agent to avoid collisions
     """
 
     todos: NotRequired[list[Todo]]
     files: Annotated[NotRequired[dict[str, str]], file_reducer]
+    searched_queries: Annotated[NotRequired[list[str]], list_reducer]
+    file_prefix: NotRequired[str]

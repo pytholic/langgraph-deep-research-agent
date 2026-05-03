@@ -21,9 +21,12 @@ A single-glance lookup across everything tracked in this project.
 
 ### Tasks
 
-| Task                 | Status  | Priority | Owner     | File                                                           | Updated    |
-| -------------------- | ------- | -------- | --------- | -------------------------------------------------------------- | ---------- |
-| Digest quality fixes | ⚪ Done | P0       | @pytholic | [tasks/digest-quality-fixes.md](tasks/digest-quality-fixes.md) | 2026-05-02 |
+| Task                                   | Status  | Priority | Owner     | File                                                                         | Updated    |
+| -------------------------------------- | ------- | -------- | --------- | ---------------------------------------------------------------------------- | ---------- |
+| Digest quality fixes                   | ⚪ Done | P0       | @pytholic | [tasks/digest-quality-fixes.md](tasks/digest-quality-fixes.md)               | 2026-05-02 |
+| M0 + M1: Baseline & Prompts            | ⚪ Done | P0       | @pytholic | [tasks/m0-m1-implementation.md](tasks/m0-m1-implementation.md)               | 2026-05-03 |
+| Fix global `searched_queries` tracking | ⚪ Done | P1       | @pytholic | [tasks/fix-global-searched-queries.md](tasks/fix-global-searched-queries.md) | 2026-05-03 |
+| Hybrid model + provider UI             | ⚪ Done | P1       | @pytholic | —                                                                            | 2026-05-03 |
 
 ### Decisions
 
